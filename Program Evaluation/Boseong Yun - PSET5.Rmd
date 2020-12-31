@@ -1,0 +1,276 @@
+---
+title: "PSET5 - Boseong Yun"
+author: "Boseong Yun"
+date: "12/03/2020"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include = F}
+# Setting global chunk options
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# Install and load packages ---------------
+packages <- c(
+  "tidyverse",
+  "haven", 
+  "knitr",
+  "broom",
+  "dendroTools",
+  "zoo",
+  "psych",
+  "ggthemes",
+  "patchwork",
+  "stargazer",
+  "tabulizer",
+  "readxl",
+  "multtest",
+  "qvalue"
+)
+
+# Change to install = TRUE to install the required packages
+pacman::p_load(packages, character.only = TRUE, install = FALSE)
+```
+
+In Lopez-Osorio et al (2017), posted on Canvas, the authors undertake an exploratory study.
+They ask what sort of factors relating to incidents of reported domestic violence (DV), and the
+parties involved, can predict DV recidivism, where DV recidivism is defined as one or more
+repeat calls to the police within six months. Although they test 66 candidate predictors (by my
+count), they take no account of multiple testing. Here you re-analyze their results, employing
+methods to control both FWER and FDR.
+
+
+1. Extract data from Tables 1 through 4 of the article, constructing a dataset or dataframe that
+can be analyzed with a statistical package.
+
+```{r}
+# Data Preparation ----------------------------------
+
+tab1a <- read_xlsx("table1.xlsx", skip = 1)
+tab2a <- read_xlsx("table2.xlsx", skip = 1)
+tab3a <- read_xlsx("table3.xlsx", skip = 1)
+tab4a <- read_xlsx("table4.xlsx", skip = 1)
+```
+
+
+```{r}
+# Creating a function that cleans the data ------------------
+
+clean <- function(data) {
+  data %>%
+    set_names(., nm = tolower(names(data))) %>%
+    separate(coefficient, into = c("coef", "stdr"), sep = 4) %>%
+    mutate(stdr = str_replace_all(stdr,  "\\*|\\[|\\]", "")) %>%
+    separate(stdr, into = c("l.conf", "h.conf"), sep = "-") %>%
+    mutate_at(.vars = c("l.conf", "h.conf"), as.numeric) %>%
+    mutate(
+      chi_95 = qchisq(p = 0.95, df = 1),
+      chi_90 = qchisq(p = 0.90, df = 1)
+      ) %>%
+    rename(valid_prop = '% valid')
+}
+  
+# Data Cleaned ----------------------------------------------
+
+# Cleaning each table 
+tab1 <- clean(tab1a)
+tab2 <- clean(tab2a)
+tab3 <- clean(tab3a)
+tab4 <- clean(tab4a)
+
+# Combining the tables
+combined <- tab1 %>%
+  bind_rows(tab2) %>%
+  bind_rows(tab3) %>% 
+  bind_rows(tab4)
+``` 
+
+
+
+2. The authors use chi-square statistics to test for association between their candidate
+predictors and DV recidivism. On the basis of the authors’ analysis, how many significant
+predictors are there at the 10 percent level?
+
+**Answer**: There are 35 predictions that are siginificant at the 10 percent level. 
+
+
+```{r}
+# The general rule for calculating degrees of freedom a chi-square test is (r-1)(c-1).
+# Since the predictors are indicator variables, we can think of 3 by 2 contingency tables.
+# Therefore, the right df is (2-1)(2-1) = 1
+combined %>%
+  filter(chi_squared > chi_90) %>%
+  select(indicators, chi_squared) %>%
+  kable(
+    caption = "Significanct Predictors",
+    col.names =  c("Indicators", "$χ^2$"), 
+    )
+```
+
+
+3. Obtain p-values associated with the chi-square statistics and plot their distribution. Under
+the null hypothesis, one can show that p-values are uniformly distributed. Given that, would
+you say the predictors are basically all noise, or does the histogram suggest there is some
+predictive signal among them?
+
+**Answer**: We expect the distribution of p-value to be uniform if the null hypothesis is true and the relevant assumptions are met. In this case, however, the distribution is not uniform and there is a high frequency with the low p-values. This suggests that there is some predictive signal among them.
+
+```{r}
+# https://stats.stackexchange.com/questions/10613/why-are-p-values-uniformly-distributed-under-the-null-hypothesis
+
+# Calculating P-Values
+p_val_df <- combined %>%
+  mutate(p_value = pchisq(chi_squared, 1, lower.tail = FALSE)) %>%
+  dplyr::select(indicators, chi_squared, p_value)
+
+p_val_df %>%
+  round_df(digits = 5) %>%
+  kable(
+    caption = "The P-Values Associated with the $χ^2$ Statistics",
+    col.names = c("Indicators", "$χ^2$", "P-Value")
+    )
+
+# Creating a histogram
+hist(p_val_df$p_value, 
+     main = "The Distribution of P-Values" ,
+     xlab = "P-Value")
+```
+
+
+4. Construct Bonferroni p-values. Controlling the FWER at 10 percent, which predictors are
+significant? Which predictors lose their significance when you account for multiple testing
+using the Bonferroni correction?
+
+```{r}
+# Creating a p-value df
+p_df <- combined %>%
+  mutate(
+    p_value = pchisq(chi_squared, 1, lower.tail = FALSE),
+    p_bf = p.adjust(p_value, "bonferroni"),
+    p_bh = p.adjust(p_value, "BH")
+    )
+
+# Creating the FWER at 10 percent 
+
+# Constructing Bonferroni p-values: predictors still significant
+p_df %>%
+  mutate(p_bf = p.adjust(p_value, "bonferroni")) %>%
+  filter(p_bf < 0.1) %>%
+  dplyr::select(indicators, p_bf) %>%
+  round_df(digits = 5) %>%
+  kable(
+    caption = "Siginificant Predictors with Bonferroni Adjusted P-Value (FWER at 10%)",
+    col.names = c("Indicators", "Adj. P-Value")
+    ) 
+
+# Constructing Bonferroni p-values: predictors losing significance
+p_df %>%
+  mutate(p_bf = p.adjust(p_value, "bonferroni")) %>%
+  filter(chi_squared > chi_90) %>%
+  filter(p_bf > 0.1)  %>%
+  dplyr::select(indicators, p_bf) %>%
+  round_df(digits = 5) %>%
+  kable(
+    caption = "Predictors that lose significance with Bonferroni Adjusted P-Value (FWER at 10%)",
+    col.names = c("Indicators", "Adj. P-Value")
+    )
+```
+
+5. Now test for significance using the Benjamini-Hochberg approach, controlling the FDR at 10
+percent. Produce a useful visualization that illustrates how the procedure works. According to
+this criterion, how many of the features are significant? In expectation, how many of these are
+false discoveries?
+
+**Answer:** The test for significance using the Benjamin-Hochberg approach with the False Discovery Rate at 10 percent shows that we reject 32 tests. The visualization also shows that there are 32 significant predictors below the line. In expectation, there are $0.1 *  (32) = 3.2$ false discoveries. 
+
+```{r}
+# Constructing Benjamini-Hochberg p-values: predictors still significant: 25
+p_df %>%
+  arrange(p_value) %>%
+  mutate(p_bh = p.adjust(p_value, "BH")) %>%  
+  filter(p_bh < 0.1) %>%
+  select(indicators) %>% 
+  kable(
+    caption = "Significanct Predictors with Benjamin-Hochberg Approach (FDR at 10%)",
+    col.names =  c("Indicators")
+  )
+
+# Constructing Benjamini-Hochberg p-values manually: predictors still significant: 32
+# Also refer to: https://brainder.org/2011/09/05/fdr-corrected-fdr-adjusted-p-values/
+
+# Visualization that illustrates how the procedure works
+
+p_df %>%
+  arrange(p_value) %>%
+  mutate(
+    k = order(p_value),
+    fdr_c = (k/nrow(.)) * 0.1 # false discovery rate set to 10 percent 
+    ) %>%
+  ggplot(aes(x = k, y = p_value)) +
+  geom_point(size = 0.5) +
+  geom_point(aes(x = k[32], y = p_value[32]), color = "red") +
+  geom_smooth(aes(x = k, y = fdr_c), size = 0.5) +
+  scale_x_continuous(breaks = seq(0, 60, by = 5)) +
+  theme_stata() + 
+  labs(
+    title = "The Test for Significance (Benjamin-Hochberg Approach)",
+    y = "P-Value"
+  )
+```
+
+6. Compute the probability that each test represents a false discovery. Despite what I said in
+lecture, this does not require simulation. It merely requires solving one equation in one
+unknown for each test.
+
+*Notes: I have computed the q-value by hand. There many available packages that compute the q-value such as qvalue and fdr.tool but they produce slihgtly different results due to their respective assumptions about the number and characteristics of tests. I have thus calculated q-value by relying on the lecture slides and helps from Piazza post and emails*
+```{r}
+p_df %>%
+  arrange(p_value) %>%
+  mutate(
+    rank = order(p_value),
+    q = p_value * (nrow(.)/rank)
+  ) %>%
+  select(indicators, p_value, q) %>%
+  kable(caption = "The Probability That Each Test Represents a False Discovery")
+```
+
+
+7. Produce a concise listing of the predictors and the various test results indicating which of
+them are significant according to the various testing procedures. Also show which are not
+significant according to any test. Do the most- or least-significant predictors follow any
+pattern? What about those in between, i.e., those which are significant according to some
+procedures but not others?
+
+**Answer:** Yes, most- or least- significant predictors follow a pattern. Specifically, the predictors that are most siginificant in one test also tend to be significant in other tests. Accordingly, the least significant predictors in one test tend to be insignificant in other testing procedures. VPER survey has high nubmer of most significant predictors and the VPR survey has high number of least significant predictors. Those predictors that are in between mainly come from the VPR survey. 
+
+```{r}
+p_df %>%
+  mutate_at(vars(p_value:p_bh), ~ifelse(. < 0.1, 1, 0)) %>%
+  select(indicators, p_value:p_bh) %>%
+  arrange(p_value) %>%
+  kable(
+    caption = "Significance Under Various Testing Procedures",
+    col.names = c("Indicators", "raw", "bf (FWER)", "bh (FDR)")
+  )
+
+# Sum of Individual Test Significance
+p_df %>%
+  mutate_at(vars(p_value:p_bh), ~ifelse(. < 0.1, 1, 0)) %>%
+  select(p_value:p_bh) %>%
+  colSums() 
+```
+
+
+8. Considering the objectives of the research study, which do you think is the more appropriate
+approach to multiple testing, FWER control or FDR control? Explain.
+
+**Answer**: I believe that FDR control is more appropriate for the study. In this reserach study, FWER control is too conservative. Although FDR allows TYPE 1 error, it increases power. For instance, we lose a number of predictive indicators when using the FWER control Therefore, I think FDR is more appropriate for the study. 
+
+
+9. It is a complete coincidence that the authors’ unadjusted testing procedure and the
+Benjamini-Hochberg procedure produce similar numbers of significant predictors. Can you
+explain why this is the case? Hint: think about the graph you produced in question 5 and the
+listing you produced in question 7.
+
+**Answer**: The authors' uadjusted testing procedure and the Benjamin-Hochberg procedures happen to produce similar number of significant predictors because the threshold the authors use do not differ siginificantly from the adjusted threshold we obtained from the BH procedure. Because the difference is very small, the authors' unadjusted testing procedure and the BH procedure produce similar number of significant predictors. 
