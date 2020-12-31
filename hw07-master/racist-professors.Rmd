@@ -1,0 +1,270 @@
+---
+title: "Predicting attitudes towards racist college professors"
+author: "Boseong Yun"
+date: "`r lubridate::today()`"
+output:
+  github_document:
+    toc: true
+---
+
+### Introduction:
+
+* In this project, I use the authoritarianism and age variables with their interaction effects with the sex variable to predict whether respondents believes that a racist professor should be allowed to teach or not. To find out the predictive capabilities, I regress colrac on authoritarianism and age separately and also with the sex variable added. 
+
+* I predict that authortarianism are going to be positively associated with the colrac variable. In other words, higher levels of authoritarianism are associated with the belief that a racist professor should be allowed to teach. I suspect postive relationship because racism that is based on the restrictive definition of race seems to be similiar to authoritarianism. For age, I predict that it is also going to be positively associated with colrac variable. That is, older people are more likely to believe that racists should be aolowed to teach. I suspect positive relationship because old people are less likely to have received education and experienced diversities than young people. Finally, I predict that females are less likely to approve racist professors to teach than the male counterparts because higher proportions of female receive college education where they learn about  injustice held in racism.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+# Loading Library 
+library(tidyverse)
+library(modelr) #data_grid() function
+library(here) # here() function
+library(knitr) # kable() function
+library(broom) # tidy and augment() function
+library(dendroTools) # round_df() function
+```
+
+
+```{r data import, include = FALSE}
+# Assigning the dataframe to gss
+racist_prof <- rcfss::gss_colrac
+
+# Cleaning the dataframe to make it suitable for analysis 
+racist_prof <- racist_prof %>%
+  mutate(authoritarianism = factor(authoritarianism), # changing the authoritranism to factor levels
+         colrac = as.integer(colrac)) # chaning the colrac into integers to 1 and 0 suitable for logistic regression
+```
+
+
+### Logistic Regression 1: The Relationship between authoritarianism and the likelihood of beliving that a racist professor should be allowed to teach.
+
+* **EDA**: The following graphs show that there is a small negative relationship between levels of authoritarianism and the likelihood of believing that a racist professor should be allowed to teach. That is, an increase in the level of authoritarianism is associated with less likelihood of believing that racists professor should be allowed to teach. The visualization of the coefficient shows that while higher levels of authoritarianism are associated with higher likelihood of believing that the racist professor should not be allowed to teach on average, they are not always consistent. These patterns are not as expected since I initally thought that people with authoritarian values could also be racists. It might be the case that people with authoritarian values have their own protected ideas and thus are not receptive to any idea 
+
+```{r glm_auth_vis, fig.width = 8}
+# Creating the General Lineral Model Regression using glm function
+glm_auth <- glm(colrac ~ authoritarianism, 
+                family = "binomial", 
+                data = racist_prof)
+
+# Creating a tidy dataframe for glm_auth
+glm_auth_df <- glm_auth %>%
+  tidy(conf.int = TRUE) %>% # tidying the output into a dataframe
+  round_df(digits = 2) # rounding to 2 digits
+
+# Saving the fitted values
+glm_auth_accuracy <- augment(glm_auth,
+                     newdata = data_grid(racist_prof, authoritarianism),
+                     type.predict = "response")
+
+# Predictive Visualization 
+glm_auth_accuracy %>%
+  ggplot(aes(x = authoritarianism, y = .fitted)) +
+  geom_line(aes(group = 1)) +
+  labs(
+    title = "Negative Relationship between Authoritarianism and Allowing Racist Professor to Teach",
+    x = "Scales of Authoritarianism",
+    y = "Predicted Probabilibty of Allowing Racist Professor",
+    caption = "Source: 2012 General Social Survey"
+  )
+
+# Visualization of the estimate
+glm_auth_df %>%
+  ggplot(aes(x = estimate, y = reorder(term, desc(term)))) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  geom_point(color = "red", size = 3) +
+  geom_vline(xintercept = 0, linetype = 3) +
+  labs(
+    y = "",
+    x = "esimate",
+    title = "The Coefficient Plot for Authoritarianism on the Probability \nof Allowing Racist Professor to Teach",
+    caption = "Source: 2012 General Social Survey"
+  )
+```
+
+* **Regression**: The regression output shows that only authoritarinism with level 4 and 6 are statistically siginificant at the 95% confidence levels. In other words, we fail to reject the null hypothesis that the effect of authoritarinism with levels of 0, 1, 2, 3, and 5 are not statistically different from 0 at the 95% confidence levels. The coefficient on level 4 and level 6 indicate that people are 47 and 60 percent less likely to allow racist professors to teach respectively. 
+
+
+```{r glm_auth_df}
+# Table 1: Regression Output - Whether Racist Professors Should be Allowed to Teach
+glm_auth_df %>%
+  kable(
+    format = "pandoc",
+    caption = "Table 1: Regression Output - Whether Racist Professors Should be Allowed to Teach",
+    col.names = c("Variable", "Estimate", "Standard Error", "T Stat", "P-Value",
+                  "Lower 95%", "Upper 95%")
+    )
+```
+
+### Logistic Regression 2: The Relationship between age and the likelihood of beliving that a racist professor should be able to teach or not.
+
+* **EDA**: The graph shows that there is a negative realtionship between age and the likelihood of beliving that racist professors should be allowed to teach. That is, old people are more likley to reject racist professors. This trend is different from what I expected because I initially thought that old people were less likely to receive college education and diversiteis and thus were more likely to approve of racist professors. This might be because the old generation lived through historic civil movements and thus know the terrible consequences of racism. It is intersting how younger people are more likely to approve racist professors!
+
+```{r glm_ag_vs, fig.width=8}
+# Creating the General Lineral Model Regression using glm function
+glm_ag <- glm(colrac ~ age, family = "binomial", data = racist_prof)
+
+# Changing the dataframe to suit 
+glm_age <- 
+  glm_ag %>%
+  tidy(conf.int = TRUE) %>% 
+  # changing the digits to 2 make the table look clearer
+  round_df(digits = 2)
+
+
+# Visualization: The Relationship between Age and whether the racist professor should teach in each age group
+age_fitted <- augment(glm_ag, # saving the fitted values
+                      newdata = data_grid(racist_prof, age),
+                      type.predict = "response")
+
+age_fitted %>% # creating a visualization of the fitted value
+  ggplot(aes(x = age, y = .fitted)) + 
+  geom_line(aes(group = 1)) +
+  labs(
+    title = "Negative Relationship between Age and Allowing Racist Professor to Teach",
+    y = "Predicted Probabilities of Allowing Racist Professor",
+    x = "Age",
+    caption = "Source: 2012 General Social Survey"
+  )
+```
+
+* **Regression**: The regression output shows that age is not statistically associated with the belief that racist professors should be allowed to teach. The high p-value suggests that we fail to reject the null hypothesis that age does not reduce the likelihood of beliving that racist professors should be allowed to teach. It is important to note, however, that this regression output may be baised due to potential omitted variable biases such as income and education levels.
+
+```{r glm_ag_df}
+# Table 2: Regression Output - Whether Racist Professors Should be Allowed to Teach
+glm_age %>%
+  kable(
+    format = "pandoc",
+    caption = "Table 2: Regression Output - Whether Racist Professors Should be Allowed to Teach",
+    col.names = c("Variable", "Estimate", "Standard Error", "T Stat", "P-Value",
+                  "Lower 95%", "Upper 95%")
+    )
+```
+
+### Multiple Logistic Regression with Authoritarianism and Sex
+
+* **EDA**: The graphs indicate that Males are more likely to allow racist professors to teach than the female counterparts across different scales of authoritarianism. For instance, males exhibit significantly higher likelihood of accpeting racist professors to teach across every level except 4 and 5 in the scales of authoritarianism. The coefficient plot shows that only two interaction variables are statistically significant. That is, females with the level 2 and 6 authoritarianism are statistically sigificant with higher probabilities of rejecting the racist progessors.
+
+```{r glm_auth_sex_vis}
+# Creating the General Lineral Model Regression using glm function
+glm_auth_sex <- glm(colrac ~ authoritarianism + sex + sex*authoritarianism, family = "binomial", data = racist_prof)
+
+# Creating a tidy dataframe for glm_auth
+glm_auth_sex_df <- glm_auth_sex %>%
+  tidy(conf.int = TRUE) %>%
+  round_df(digits = 2) %>%
+  mutate(term = str_replace_all(term, pattern = c("sex" = "",
+                                                  "(Intercept)" = "authoritarianism0" ))) #changing the name of the base level to make it more intuitive
+
+# Setting the factor levels
+glm_auth_sex_df$term <- factor(glm_auth_sex_df$term, 
+                               levels = c("(authoritarianism0)", "Female",
+                                          "authoritarianism1", "authoritarianism1:Female",
+                                          "authoritarianism2", "authoritarianism2:Female",
+                                          "authoritarianism3", "authoritarianism3:Female",
+                                          "authoritarianism4", "authoritarianism4:Female",
+                                          "authoritarianism5", "authoritarianism5:Female",
+                                          "authoritarianism6", "authoritarianism6:Female",
+                                          "authoritarianism7", "authoritarianism7:Female"))
+
+
+# Saving the fitted values
+glm_auth_sex_accuracy <- augment(glm_auth_sex,
+                                 newdata = data_grid(racist_prof, authoritarianism, sex),
+                                 type.predict = "response")
+
+# graph the prediction
+glm_auth_sex_accuracy %>%
+  ggplot(aes(x = authoritarianism, y = .fitted, group = sex, color = sex)) +
+  geom_line() +
+  labs(
+    title = "Interaction Effect between Authoritarianism and Sex on Allowing Racist Professor to Teach",
+    y = "Predicted Probabilities of Allowing Racist Professor",
+    x = "Scales of Authoritarianism",
+    caption = "Source: 2012 General Social Survey"
+  )
+
+# Visualization of the estimate
+glm_auth_sex_df %>%
+  mutate(interaction = ifelse(str_detect(term, pattern = "e$"), TRUE, FALSE)) %>% # creating additional variables to make effective visualzation
+  ggplot(aes(x = estimate, y = reorder(term, desc(term)))) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  geom_point(aes(color = interaction), size = 3) +
+  geom_vline(xintercept = 0, linetype = 3) +
+  theme(legend.position = "none") +
+  labs(
+    y = "",
+    x = "esimate",
+    title = "The Coefficient Plot for Authoritarianism and Sex on Probability \nof Allowing Racist Professor to Teach",
+    caption = "Source: 2012 General Social Survey"
+  )
+```
+
+* **Regression**: The regression outputs indicate that most of the interaction effects are not statistically significant. That is, we fail to reject the null hypothesis that females are less likely to reject racist professors at the level of 0, 1, 3, 4, and 5 of authoritarianism. Neverthelss, the coefficient on the interaction effects with level 2 and 6 of authoritarianism indicate that being a female reduces the likelihood of allowing the racist professors to teach by 92% and 132% from those of the male conterparts. I believe that these figures are incorrect and suffer from omitted variable biases because the probabliby should not exceed 1. 
+
+```{r glm_auth_sex_df}
+# Table 3: Regression Output - Whether Racist Professors Should be Allowed to Teach
+glm_auth_sex_df %>%
+  kable(
+    format = "pandoc",
+    caption = "Table 3: Regression Output - Whether Racist Professors Should be Allowed to Teach",
+    col.names = c("Variable", "Estimate", "Standard Error", "T Stat", "P-Value",
+                  "Lower 95%", "Upper 95%")
+    )
+```
+
+## Multiple Logistic Regression with Age and Sex
+
+* **EDA**: The graph indicates that females are more likely to reject racist professors than the male counterparts in each age. It is also interesting to note that the difference in probabilities widen with more age. This is pattern is partialy in consitent with my initial prediction that females are more likley to reject racist professors as they recive more college educaton and experience diversities. Howeveer, it fails to explain the difference in groups with age greater than 60 where females had liimted access to college education. The difference might be due to the fact that females tend to be more social and generous with differences among people. 
+
+
+```{r glm_ag_sex_vis, fig.width=8}
+# Creating the General Lineral Model Regression using glm function
+glm_ag_sex <- glm(colrac ~ age + sex + age*sex, family = "binomial", data = racist_prof)
+
+# Changing the dataframe suitable for analysis 
+glm_ag_sex_df <- 
+  glm_ag_sex %>%
+  tidy(conf.int = TRUE) %>% 
+  # changing the digits to 2 make the table look clearer
+  round_df(digits = 2) %>%
+  # changing the labes to more readily interpretable names
+  mutate(term = str_replace_all(term, c("(Intercept)" = "Male",
+                                        "sex" = ""))) 
+
+
+# Visualization 2: The Relationship between Age and whether the racist professor should teach in each age group
+age_sex_fitted <- augment(glm_ag_sex, # saving the fitted values
+                          newdata = data_grid(racist_prof, age, sex),
+                          type.predict = "response")
+
+age_sex_fitted %>% # creating a visualization of the fitted value
+  ggplot(aes(x = age, y = .fitted, group = sex, color = sex)) + 
+  geom_line() +
+  labs(
+    title = "Interaction Effect between Age and Sex on Allowing Racist Professor to Teach",
+    y = "Predicted Probablities of Allowing Racist Professor",
+    caption = "Source: 2012 General Social Survey"
+  )
+```
+
+* **Regression**: The regression output indicates that none of the variables, including the interaction variables, are statistically significant at the 95% confidence level. These can be found in the realtively high p-value. Thus, we fail to reject establish statistical relationship between 
+
+```{r glm_ag_sex_df}
+# Table 4: Regression Output - Whether Racist Professors Should be Allowed to Teach
+glm_ag_sex_df %>%
+  kable(
+    format = "pandoc",
+    caption = "Table 4: Regression Output - Whether Racist Professors Should be Allowed to Teach",
+    col.names = c("Variable", "Estimate", "Standard Error", "T Stat", "P-Value",
+                  "Lower 95%", "Upper 95%")
+    )
+```
+
+
+## Session info
+
+```{r}
+devtools::session_info()
+```
