@@ -9,16 +9,16 @@ There are two main parts of the homework:
 
 ## Packages you need
 
-library(tidyverse)
-library(geonames)
-library(gapminder)
-library(countrycode)
-library(lubridate)
-library(forcats)
-library(rvest)
-library(broom)
-library(dendroTools)
-library(knitr)
+library(tidyverse) 
+library(geonames) 
+library(gapminder) 
+library(countrycode) 
+library(lubridate) 
+library(forcats) 
+library(rvest) 
+library(broom) 
+library(dendroTools) 
+library(knitr) 
 
 * Although not a R package, you may need [selector gadget](https://selectorgadget.com/) to facilitate your webscraping journey. Click the webiste to learn more about the gadget
 
