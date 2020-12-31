@@ -1,0 +1,111 @@
+---
+title: "Homework 08: Part 1. Analysis of Gapminder"
+author: "Boseong Yun"
+date: "`r lubridate::today()`"
+output: github_document
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(geonames)
+library(gapminder)
+library(countrycode)
+library(lubridate)
+library(forcats)
+library(rvest)
+library(broom)
+library(dendroTools)
+library(knitr)
+
+# Retreving the key from R.profile to activate geonames package
+key <- getOption("geonamesUsername")
+  
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+```
+
+# Part 1. Exploring the Gapminder Data
+
+```{r gap_data}
+# Getting the country informaton and saving it to geo_country
+geo_country <- geonames::GNcountryInfo()
+
+# Merging the dataframes using left_join wiht country_code function with by argument.
+gap_joined <- gapminder %>%
+  mutate(country_code = countrycode(country, origin = 'country.name', destination = 'iso2c')) %>%
+  # using the countrycode function to join
+  left_join(geo_country, by = c("country_code" = "countryCode"))
+
+# Calculate the population density for each observation
+gap_dens <- gap_joined %>%
+  select(country, "continent" = continentName, year, lifeExp, pop, areaInSqKm) %>%  # selecting relevant variables
+  mutate(pop_den = pop / as.numeric(areaInSqKm),
+         continent = factor(continent)) # changing the continent to factor 
+```
+
+ 
+* Exploratory Data Analysis: The following graph shows that population density is positively associated with higher life expectancy in Africa, Asia, and South America. In other continents, the impact of population density on life expectancy seems to be meager. 
+
+```{r gap_dense_vis}
+# Produce an updated graph using population density
+gap_dens %>%
+  ggplot(aes(x = pop_den, y = lifeExp, color = continent)) +
+  geom_point(position = position_jitter(w = 0.5, h = 0.5), alpha = 0.1) +
+  geom_smooth(method = "lm", se = FALSE) + # setting the method argument to linear model
+  scale_x_log10() +
+  facet_wrap(~ continent) +
+  labs(
+    title = "Life Expectacny by Popluation Density in Each Continent (1952 - 2007)",
+    x = "Population Density per square kilometer (scale logged)",
+    y = "Life Expectancy (in Age)",
+    caption = "Source: Gapminder Package",
+    color = "Continent"
+  )
+```
+
+* Exploratoray Data Analysis with statistical information: The following coeffcient plot shows that continent variables have strong impact on the life expectancy. The population density variable, however, seems to have limited impact. All of the variables are statistically significant with confidence intervals ranging on strcitly positive value. (Although the coefficient on population density is hardly visible on this plot, its confidence intervals lie strictly above zero)
+
+```{r lm_coefficient_plot}
+# Creating a linear model that regresse life expectancy on population density and continent
+gap_mod <- lm(lifeExp ~ pop_den + continent, data = gap_dens)
+
+gap_mod %>%
+  tidy(conf.int = TRUE) %>%
+  # changing the coefficients into easily interpretable names
+  mutate(term = str_replace_all(term, c("continent" = "",
+                                        "pop_den" = "Population Density"))) %>% 
+  ggplot(aes(y = reorder(term, desc(estimate)))) +
+  geom_linerange(aes(xmin = conf.low, xmax = conf.high)) +
+  geom_point(aes(x = estimate), size = 0.5, color = "red") +
+  geom_vline(xintercept = 0, linetype = 2, size = 0.2) +
+  labs(
+    title = "Coefficient Plot for Gapminder Linear Model",
+    y = "Coefficients",
+    x = "Estimate",
+    caption = "Source: Gapminder Package"
+  )
+
+```
+
+* Regression: The following regression output table shows that population density increases life expectancy only slightly holding continent variables constant.  On the other hand, the coefficients on the continent varibles show that Asia, Europe, North America, Oceania, and South America increases the life expectancy by 9.65, 23.18 15.90, 25.64, and 15.38 years respectively. These results imply that other factors such as GDP, infrastructure, and availability of food and medical services in each continent could have impact on life expectancy.
+
+```{r linear_model results}
+# Regression Output Table
+gap_mod %>%
+  tidy(conf.int = TRUE) %>%
+  round_df(digits = 4) %>%
+  mutate(term = str_replace_all(term, c("continent" = "",
+                                        "pop_den" = "Population Density"))) %>%
+  kable(
+    caption = "Table 1: Regression Output on Life Expectancy",
+    col.names = c("Variable", "Estimate", "Standard Error", "T Stat", "P-Value",
+                  "Lower 95%", "Upper 95%")
+  )
+```
+
+```{r session_info}
+devtools::session_info()
+```
+
+
+
+

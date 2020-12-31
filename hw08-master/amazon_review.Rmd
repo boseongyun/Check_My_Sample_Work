@@ -1,0 +1,276 @@
+---
+title: "Homework 08: Part 2. Anaylsis using Webscraping from Amazon Review"
+author: "Boseong Yun"
+date: "`r lubridate::today()`"
+output: github_document
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(countrycode)
+library(lubridate)
+library(forcats)
+library(rvest)
+library(broom)
+library(dendroTools)
+library(knitr)
+
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, fig.width = 8)
+```
+# Part 2. More complicated data collection
+
+**Introduction**: In the era of COVID-19 pandemic, staying at home has never been more important. Often times, staying home is easily said than done. This is especially true due to sadness, anxities, and uncertainties revolving around the world at this time. To maintain emotional and spiritual stability in these times, one may consider buying a speaker to listen to good music and relax one's mind. In fact, [businesswire](https://www.businesswire.com/news/home/20200513005670/en/Strategy-Analytics-8.2-Sales-Growth-Smart-Speakers) reveals that the sales of speakers in 2020 Q1 increased 8.2% from 2019 Q1. In this project, I web-scrape and analzye the customer review from Amazon on Marshall Stockwell 2 and Marshall Acton 2. This analysis may provide provide useful information to potential consumers about which speaker would be the best option. I have limited the brand to Marshall due to its poularity and the products to Stockwell-2 and Acton-2 due to the simliarity in the prices. 
+
+
+```{r stockwell2, include=FALSE, cache = FALSE}
+# Building the customzied function that returns essential review information needed for buying Marshall's Stockwell Spaeker
+scrape_stockwell2 <- function(page_num){
+
+  url_reviews <- paste0("https://www.amazon.com/Marshall-Stockwell-Portable-Bluetooth-Speaker/product-reviews/B07Q12WDP2/ref=cm_cr_getr_d_paging_btm_prev_",page_num,"?ie=UTF8&reviewerType=all_reviews&pageNumber=",page_num) # using paste0 function to select various pages of review
+  
+  review <- read_html(url_reviews) # Assgining the files
+  
+  # Saving the title of the review
+review_title <- review %>% 
+    html_nodes("[class='a-size-base a-link-normal review-title a-color-base review-title-content a-text-bold']") %>%
+    html_text()
+  
+  # Saving the text of the review
+review_text <- review %>% 
+    html_nodes("[class='a-size-base review-text review-text-content']") %>%
+    html_text() 
+  
+  # Saving the star of the review
+review_star <- review %>%
+    html_nodes("[data-hook='review-star-rating']") %>%
+    html_text()
+  
+  # Saving the date of the review
+review_date <- review %>%
+    html_nodes("[data-hook='review-date']") %>%
+    html_text()
+  
+  # Return a clean tibble
+  tibble(
+    review_title,
+    review_text,
+    review_star,
+    review_date,
+    page = page_num
+    ) %>%
+    mutate(
+      review_title = gsub("\r?\n|\r", " ", review_title), # cleaning using gsub function
+      review_text = gsub("\r?\n|\r", " ", review_text), # cleaning using gsub function
+      review_star = substr(review_star, start = 1, stop = 1), # selecting only the score
+      review_date = gsub(review_date, pattern = ".*on ", replacement =""), # saving only relevant information
+      product = "Stockwell2",
+    ) %>%
+    return()
+
+  # I have used the selector gadget to help find each node
+  
+  # I have referred the following website to clean the title and text: https://stackoverflow.com/questions/21781014/remove-all-line-breaks-enter-symbols-from-the-string-using-r
+} 
+
+# saving the stockwell2 dataframe from page 1 to 20
+stockwell2 <- map(1:20, ~ scrape_stockwell2(page_num = .)) %>%
+  bind_rows() # combining the lists into a dataframe using bind_rows
+```
+
+```{r acton2, inclde=FALSE}
+# Building the customzied function that returns essential review information needed for buying Marshall's Stockwell Spaeker
+scrape_acton2 <- function(page_num){
+  
+  url_reviews <- paste0("https://www.amazon.com/Marshall-Wireless-Multi-Room-Speaker-Amazon/product-reviews/B07J4HY7GS/ref=cm_cr_getr_d_paging_btm_prev_",page_num,"1?ie=UTF8&reviewerType=all_reviews&pageNumber=",page_num) # using paste0 function to select different pages of review
+  
+  review <- read_html(url_reviews) # Assgining the files
+  
+  # Saving the title of the review
+review_title <- review %>% 
+    html_nodes("[class='a-size-base a-link-normal review-title a-color-base review-title-content a-text-bold']") %>%
+    html_text()
+  
+  # Saving the text of the review
+review_text <- review %>% 
+    html_nodes("[class='a-size-base review-text review-text-content']") %>%
+    html_text() 
+  
+  # Saving the star of the review
+review_star <- review %>%
+    html_nodes("[data-hook='review-star-rating']") %>%
+    html_text()
+
+  # Saving the date of the review
+review_date <- review %>%
+    html_nodes("[data-hook='review-date']") %>%
+    html_text()
+  
+  # Return a clean tibble
+  tibble(
+    review_title,
+    review_text,
+    review_star,
+    review_date,
+    page = page_num
+    ) %>%
+    mutate(
+      review_title = gsub("\r?\n|\r", " ", review_title), # cleaning using gsub function
+      review_text = gsub("\r?\n|\r", " ", review_text), # cleaning using gsub function
+      review_star = substr(review_star, start = 1, stop = 1), # selcting only the score 
+      review_date = gsub(review_date, pattern = ".*on ", replacement = ""), # saving only relevant information
+      product = "Acton2"
+      ) %>%
+    return()
+
+  # I have referred the following website to clean the title and text: https://stackoverflow.com/questions/21781014/remove-all-line-breaks-enter-symbols-from-the-string-using-r
+}
+
+# Saving the acton2 dataframe from page 1 through 20
+acton2 <- map(1:20, ~ scrape_acton2(page_num = .)) %>%
+  bind_rows()
+```
+
+
+```{r marshall, include=FALSE}
+# Combining the two products into a marshall dataframe
+marshall <- stockwell2 %>% 
+  bind_rows(acton2) %>%
+  mutate(
+    product = factor(product, levels = c("Acton2", "Stockwell2")),
+    review_date = lubridate::mdy(review_date), # changing the type of the column to Date object 
+    review_star = as.numeric(review_star), 
+    three_month = cut(review_date, "3 months") # creating a three-month interval date
+  )
+```
+
+
+**Analysis 1**: The following plot shows that the number of reviews for Stockwell-2 is almost double the number of reviews for Acton-2. This may suggest that Stockwell-2 is a more popular product than Acton-2. It could also mean that Stockwell-2 was released earlier than Acton-2. These figures about the size of the reviews also provides useful information used to understand the validity and robustness of analysis being performed in the remainder of the report. Also from a consumer's perspectives, it is always better to have more reviews to make informed decisions.
+
+```{r plot_count}
+# Comparing the number of reviews
+marshall %>%
+  count(product) %>%
+  ggplot(aes(x = product, y = n)) +
+  geom_col() +
+  labs(
+    title = "The Number of Available Reviews for Marshall Speakers on Amazon",
+    y = "Count", 
+    x = "Product",
+    caption = "Source: Amazon"
+  ) 
+```
+
+**Analysis 2**: The following graph shows the average star score for each product at three months interval beginning January, 2019. There are a couple of things to notice about the graph. First of all, the lack of data for Stockwell-2 in the first quarter of the year suggests that the product could have been released after that period. In fact, Goolgle Serach reveals that Stockwell-2 first became commerically available on May 7, 2019 with Action-2 first becoming available on October 1, 2018. Another thing to notice is that the average star score for Stockwell-2 is higher in every quarter except the period starting on July, 2019. Most importantly, there is minimial variance in the average score for Stockwell-2 compared to that of Acton-2. While more data with passing time may prove otherwisedly, this graph shows that the consumer satisfaction with Stockwell-2 speaker is likely to be higher also at high precision.
+
+```{r plot_average_review}
+# Comparing the average review score by three-month period
+marshall %>%
+  group_by(three_month, product) %>%
+  summarize(review_star = mean(review_star, na.rm = TRUE)) %>%
+  ggplot(aes(x = three_month, y = review_star, color = product)) +
+  geom_point() +
+  geom_line(aes(group = product)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "The Average Review Star for Marshall Speakers on by Three-Month Intervals on Amazon",
+    x = "Date",
+    y = "Average Score",
+    color = "Product",
+    caption = "Source: Amazon"
+  )
+```
+
+**Analysis 3**: The following shows the average number of words used in the review for each product divided by the review star score over 6-month intervals. This graph provides interesting information about the progression of the average number of words used in each reviewv star socre. For instance, it can be seen that high number of average words used to describe Stockwell-2 with only 4 and 5 levels in the beginning of 2019 quickly decrease as time progresses. The flatter distribution in each review star at the end of the 2019 and at the beginning of 2020 seem to reveal that the true review need be time-adjusted. Also, the progression of the average numbers used in the review for Action-2 in each star level shows that the product is being re-evaluated with more time. Although there are many other factors such as price change, the presence of substitues, and the credibility of the seller, this graph provides valuable information about the change in the consumer satisfcation of the product over time. 
+
+```{r num_words}
+# Comparing the number of words used to dsescribe the products in every 6-month interval. 
+marshall %>%
+  mutate(six_month = cut(review_date, "6 months"),
+         num_words = str_count(review_text, pattern = "\\s")) %>%
+  group_by(six_month, review_star, product) %>%
+  summarize(num_words = mean(num_words)) %>%
+  ggplot(aes(x = six_month, y = num_words, fill = factor(review_star))) +
+  geom_col(position = position_dodge(preserve = "single")) +
+  facet_wrap(~ product) +
+  scale_y_continuous(breaks = seq(0, 400, by = 50)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "The Number of Words Used to Describe Review for Acton-2 and Stockwell-2 Speakers",
+    subtitle = "(by average review star score at 6-month intervals)", 
+    x = "",
+    y = "Average Number of Words",
+    fill = "Review Star"
+  )
+```
+
+**Analysis 4**: The following graph shows the specific words used in the title of the review for each product. Since title tends to capture the key information, analysis of words used in title can provide valuable information.  Although some of the words used in the title are not either fully informative or require further contexts, the words used show some key functionalities of each speaker. For instance, Acton-2 seems to provide Alexa service and stockwell-2 seems to provide great portability.
+
+```{r specific_title}
+# Building a customized function that returns the words used in each title
+find_title <- function(score) {
+
+  marshall %>%
+    filter(review_star == score) %>%
+    mutate(titles = str_split(review_title, pattern = "\\s")) %>%
+    unnest(titles) %>%
+    count(review_star, product, titles, sort = TRUE)
+}
+
+# Using map function to find the titles from review star of 1 through 5
+map_df(1:5, ~ find_title(score = .)) %>%
+  bind_rows() %>%
+  filter(!titles %in% c("", "and", "a", "is", "in", "the")) %>% # filtering out unncessary information
+  count(product, titles, sort = TRUE) %>%
+  group_by(product) %>%
+  top_n(n = 3) %>%
+  ggplot(aes(y = reorder(titles, n), x = n, fill = product)) +
+  geom_col() +
+  labs(
+    title = "The Words Used in the Title of Review for Marshall Speakers",
+    y = "Words",
+    x = "Count",
+    fill = "Product"
+  )
+```
+
+
+**Analysis 5**: The following graph shows the words used in the description of review for each speaker. Although the words used in the description may prove useful to people without any knowledge about the products being analyzed, these graphs fail to provide any substantive information to potential buyers deciding between the two different models. These graphs will look much better had the words been filtered to adjectives or adverbs. Hopefully, I can learn it in next week! 
+
+```{r specific_description}
+# Building a customzied function that returns the words used in each description of the review
+find_description <- function(score) {
+
+  marshall %>%
+    filter(review_star == score) %>%
+    mutate(words = str_split(review_text, pattern = "\\s")) %>%
+    unnest(words) %>%
+    count(review_star, product, words, sort = TRUE)
+}
+
+# Using map function to find the words that characterize
+map_df(1:5, ~ find_description(score = .)) %>%
+  bind_rows() %>%
+  filter(!words %in% c("", "and", "a", "is", "in", "the")) %>% # filtering out unncessary information
+  count(product, words, sort = TRUE) %>%
+  group_by(product) %>%
+  top_n(n = 3) %>%
+  ggplot(aes(y = reorder(words, n), x = n, fill = product)) +
+  geom_col() +
+  labs(
+    title = "The Words Used in the Description of Review for Marshall Speakers",
+    y = "Words",
+    x = "Count",
+    fill = "Product"
+  ) +
+  scale_x_continuous(breaks = seq(1, 10, by = 1))
+
+```
+
+# Conclusion
+
+If you are considering between Stockwell-2 and Acton-2,Buy Stockwell-2! Unless you really need the Alexa feature, the data on Amazon Review seem to suggest that Stockwell-2 is a better choice than Acton 2. Obviously, however, you can buy other products from other firms. Stay tuned!
+
+```{r}
+sessionInfo()
+```
+
