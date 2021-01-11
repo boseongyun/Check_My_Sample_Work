@@ -4,13 +4,13 @@
 
 ### Required Packages
 
-library(tidyverse)
-library(dendroTools)
-library(broom)
-library(modelr)
-library(here)
-library(rcfss)
-library(knitr)
+* library(tidyverse)
+* library(dendroTools)
+* library(broom)
+* library(modelr)
+* library(here)
+* library(rcfss)
+* library(knitr)
 
 
 ### Part 1: Trump
