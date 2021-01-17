@@ -70,7 +70,7 @@ seemingly mystic form, I aim to analyze gendered patterns in one’s
 description of happiness. Specifically, I intend to find how one’s
 perspectives of happiness can be affected by gender at the intersection
 of age, maritial status, parenthood experiences through studying the
-number words used to describe their happiness.
+number of words used to describe their happiness.
 
 # Data Analysis
 
