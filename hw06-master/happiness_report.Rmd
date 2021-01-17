@@ -1,0 +1,265 @@
+---
+title: "Analysis of Gendered Hapiness by the Number of Words Used to Descripe Happy Moments"
+author: "Boseong Yun"
+date: "5/18/2020"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(reprex)
+library(stringi)
+library(knitr)
+library(here)
+library(cowplot)
+library(glue)
+```
+
+
+# How I obatined and selected the dataset? 
+I have previously visited Kaggle, Harvard Dataverse, ICPSR, and other U.S government webiste to look for data. However, many datasets were often too extensive, too sepcific, and perhaps quite formal. I wish I had the capabilites to analyze them (more computing courses...)! Additionally, I knew I had to select the data that gave me good goosebumps as a social scientist as noted in "Aim Higher Section" of the homework. I was able to navigate my way through [Data is Plural](https://docs.google.com/spreadsheets/d/1wZhPLMCHKJvwOkP4juclhjFgqIY8fQFMemwKL2c64vk/edit#gid=0) website that is kindly listed on the homework webpage. After scrolls and downloads, I was fortunate to find [HappyDB](https://github.com/megagonlabs/HappyDB) that contains more than 10 thousand crowd-sourced happy moments. I have always wanted to do reserach that quantifies unstructured data about subtle human interactions, which I have previously stated in my [hw01](https://github.com/boseongyun/hw01). I knew this was what I was looking for!
+
+# Data Description 
+The data has been collected over 3 months on Amazon Mechnical Turk (MTurk) workers by asking the workers to describe 3 happy moments in the past 24 hours (or past 3 months) in textual form from 2017/03/28 to 2017/06/16. The data has been collected by HappyDB with the purpose of finding the cause of happiness. In the github repo, the author has released **cleaned_hm.csv, original_hm.csv, demographics.csv, and senselabel.csv**. I have only chosen **original_hm.csv** and **demographics.csv** that include information about description of moments and demographic information about the participants. The other files that I have excluded form this project includes variables where some level of analysis has already been done. For instance, in the **cleaned_hm.csv** file, there are 6 more columns that in fact are the output of cleaning and analysis of the original analysis. I have thus decided to use **original_hm.csv** and **demographics.csv** to make my own analysis. If you want detailed information about the dataset, visit [HappyDB](https://github.com/megagonlabs/HappyDB).
+
+In the **original_hm.csv** file, the variables are: 
+
+* hmid (int): Happy moment ID
+* wid (int): Worker ID
+* hm (str): Original happy moment
+* reflection_period (str): Reflection period used in the instructions provided to the worker (3m or 24h)
+
+
+In the **demographic.csv** file, the variaables are: 
+
+* wid (int): Worker ID
+* age (float): Age
+* country (str): Country of residence (follows the ISO 3166 Country Code)
+* gender (str): {Male (m), Female (f), Other (o)}
+* marital (str): Marital status {single, married, divorced, separated, or widowed}
+* parenthood (str): Parenthood status {yes (y) or no (n)}
+
+
+# Introduction to my project on gendered happiness
+Happiness can mean many things to many different people. Some tend to be rough, some tend to be seasoned, and some tend to be a mixture of both. It is indeed amazing to see how people grow old with it. Despite its seemingly mystic form, I aim to analyze gendered patterns in one's description of happiness. Specifically, I intend to find how one's perspectives of happiness can be affected by gender at the intersection of age, maritial status, parenthood experiences through studying the number words used to describe their happiness. 
+
+
+```{r import_data, include=FALSE}
+# Importing happiness File
+happiness <- read_csv(here("data", "original_hm.csv")) # using here package to increase reproducibility related to filepaths on other computers 
+
+# Importing demographics file
+demographics <- read_csv(here("data", "demographic.csv"))
+```
+
+```{r data_cleaning, include = FALSE}
+# Thanks to tidy-savvy techinican, the original data is in a tidy format! However, some of the datasets have to be merged together and there are strings in columns that are not best suited for the intent of my analysis. They have been cleaned and modified. 
+
+happiness_joined <- happiness %>%
+  inner_join(demographics, by = "wid") %>%  # Joining the demographics dataframe
+  mutate(gender = str_replace_all(gender, c("m" = "Male", "f" = "Female", "o" = "Others")), # changing it to more informative names. For instance, "o" may not make immediate sense.
+         parenthood = str_replace_all(parenthood, c("y" = "TRUE", "n" = "FALSE", "na" = "NA"))) %>% 
+  mutate(
+    age = substr(age, start = 1, stop = 2), # Using unique funnction shows that some of the ages are 233 and 237. Limiting the age variable 2-digits at max
+    age = as.numeric(age), # There are unidentifible characters in the age column that prevetns analysis. as.numeric() function makes the numbers numeric and coerces characters to NA value
+    age_group = cut(age,  # Creating age groups for easy comparison of age categories.
+                    breaks = seq(0, 100, by = 10),
+                    labels = c("0-10", "10-20", "20-30", "30-40", "40-50",
+                               "50-60", "60-70", "70-80", "80-90", "90-100"),
+                    ordered_result = TRUE), 
+    word_count = stri_count(hm, regex = "\\S+")
+  ) %>%
+  filter(!is.na(age))
+
+# I have not filtered out NA value in the gender category because there was no documentatio on the NA value and, considering gender fluidity, NA can be in and of itself can store valuable information.I have also changed the number column to numeric. There were NA values and other character value "I don't want to say". I have filtered them out because I would like to use age as one of my primary dependent variables. 
+
+# I have referred the following website to learn how to count the number of words, not characetrs: https://stackoverflow.com/questions/23801839/how-do-i-count-the-number-of-words-in-a-text-string
+
+# I have referred the folloing website to learn how to replace multiple strings: https://stackoverflow.com/questions/50842140/replace-multiple-words-in-r-easily-str-replace-all-gives-error-that-two-objects
+
+# I have referred the following website to learn about cut function to assign a value based on the range of another variable: https://stackoverflow.com/questions/21050021/create-category-based-on-range-in-r
+```
+
+# Data Analysis
+
+**Analysis 1 - Does gender affeect the number of words used to describe happy moments?** The EDA shows that the number of words used to describe happy moments per person by gender does not yield any meaningful difference between men and women. While femalse use more number of wrods, they do not seem to be using significantly more words than males at least in describing happiness in this study. This small difference might come from different ways females and males socialize with people. For instance, females are more likely to spend time in activities that require more words than men. It is interesting to note, however, that those who have have identifeid themselves as others were the least likely to describe happiness using many words. Additionally, those who belong to the NA category were the most likely to describe happiness using many words. Although lack of documentation on NA value in the gender category allows presumptions at best, the binary gender model seems to be limited in terms of explaining gendered differences in this analysis. For instance, both Others and NA groups differed by 26 and 17 percents while Male and Female groups differed only by 3 percents from the average number of words used to describe happy moments across groups. It might be the case that they could have lived under different circumstances where they could not openly describe about themselves and thus show differences in the number of words used. Also, it could be the case that they spent a lot of time thinkig about happiness living as a minority and thus could have a solidifed answer to the question in different legnths. From this result, we can suspect that gender does affect how one expresses happy moments using language.
+
+```{r by_gender, echo = FALSE}
+# Creating a dataframe that calculates the number of words used to describe happy moments by gender
+hap_gender <- happiness_joined %>%
+  group_by(gender) %>%
+  summarize(
+    num_people = n(), 
+    word_count_total = sum(word_count, na.rm = TRUE),
+    word_count_per_person = word_count_total / num_people
+  )
+
+# Visualization of the hap_gender dataframe.
+hap_gender %>%
+  ggplot(aes(x = gender, y = word_count_per_person)) +
+  geom_col() +
+  geom_label(aes(label = paste0("N = ", num_people))) +
+  labs(
+    title = "The Number of Words Used to Describe Happy Moments by Gender per Person",
+    subtitle = "(from the survey of Amazon Mechanical Turk workers from 2017-03-28 to 2017-06-26)",
+    x = "", 
+    y = "Number of Words",
+    caption = "Source: HappyDB"
+  )
+
+# Data Frame that shows the numeric difference
+hap_gender %>%
+  mutate(
+    avg_word_count = mean(word_count_per_person),
+    diff_in_percent = (word_count_per_person - avg_word_count) / word_count_per_person
+  ) %>%
+  kable(col.names = c("Gender", "Number of People", "Word Count", "Word Count per Person",
+                      "Avearge Word Count per Person Across Groups", "Difference in Percents"),
+        format = "markdown")
+```
+
+**Analysis 2 - Does gender at the intersection of parenthood and marriage affeect the number of words used to describe happy moments?** The EDA shows that the number of words used to describe happy moments per person by gender and marital status does not vary significnatly among male and females. Although there is a slight tendency for males with separated, married, and NA maritial status to use more words, they do not deviate significant form the average. It is interesting to note that for those who belong to Others and NA, they do not belong to some of the maritial categories previously applied to male and female groups such as widowed and separated. While this might be due to the fact that there is small sample size for those groups, this  indicates that our cultural and social institutions that define human relationship may not fully reflect its diversity across different groups. Within Others and NA gender categories, those whose maritial status is divorced tends to speak significantly more than other people in the same groups and across other groups. It may be the case that it is not easy to find maritial partners for them and thus divorce carries relatively more weight in changing how one experiences and expresses happy moments. The status of parenthood increases the number of words used to describe happy moments for male and female, and NA groups. The reverse is true for the others group. This perplexing pattern seems to need further reserach to find its cause. It might be the case, howeverm, that the relationship between the number of words used to describe happy moments and maritial status is spurious. For instance, people with divorced and separated maritial status could simply had more time to focus on their meories and thus could have used the time to find more words to describe happiness. 
+
+```{r by_gender_marriage_parenthood, echo = FALSE, fig.width = 10, fig.height = 8}
+# Creating a dataframe that calculates the number of words used to describe happy moments by gender and martial status
+hap_gender_marriage <- happiness_joined %>%
+  group_by(gender, marital) %>%
+  summarize(
+    num_people = n(), 
+    word_count_total = sum(word_count, na.rm = TRUE),
+    word_count_per_person = word_count_total / num_people
+  )
+
+vis_marriage <- hap_gender_marriage %>%
+  ggplot(aes(x = gender, y = word_count_per_person, fill = marital)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = num_people), position = position_dodge(width = 0.9), size = 2.5, vjust = 2) +
+  labs(
+    title = "The Number of Words Used to Describe Happy Moments by Gender and Martial Status per Person",
+    subtitle = "(from the survey of Amazon Mechanical Turk workers from 2017-03-28 to 2017-06-26)",
+    x = "Gender", 
+    y = "", 
+    fill = "Martial Status"
+  )
+
+  
+# Creating a dataframe that calculates the number of words used to describe happy moments by gender and parenthood
+hap_gender_parent <- happiness_joined %>%
+  group_by(gender, parenthood) %>%
+  summarize(
+    num_people = n(), 
+    word_count_total = sum(word_count, na.rm = TRUE),
+    word_count_per_person = word_count_total / num_people
+  )
+
+vis_parent <- hap_gender_parent %>%
+  ggplot(aes(x = gender, y = word_count_per_person, fill = parenthood)) +
+  geom_col(position = "dodge") + 
+  geom_text(aes(label = num_people), position = position_dodge(width = 0.9), vjust = 2) +
+  labs(
+    x = "Gender",
+    y = "", 
+    fill = "Parenthood",
+    title = "The Number of Words Used to Describe Happy Moments by Gender and Parenthood per Person",
+    subtitle = "(from the survey of Amazon Mechanical Turk workers from 2017-03-28 to 2017-06-26)",
+    fill = "Martial Status"
+  )
+
+# Using plot_grid from cowplot package to compare the two graphs. This show cases the fine difference between marriage and parenthood. 
+cowplot::plot_grid(vis_marriage, vis_parent, nrow = 2)
+```
+
+**Analysis 3.1 - Does gender at the intersection of age affect the number of words used to describe happy moments?** The following graph provide an overview of how age affects the number of words used to describe happy moments in each gender category. For instance, we can find that there is a slight positive assocation with age and the number of words used to describe happy moments for each gender category. Although it is true that each gender category has its own reflection point, they show similar trends and thus age does not seem to produce meaningful difference for each gender category. This might be because people find more happy moments as they develop more sophisticated taste of happiness and learn words used to describe them with age. Also, it could be that gender may lose its distintive role as the source of difference, if not discrimination, over age. On the side note, it interesting to find the apperance of Others and NA gender categories as the age-cohort progresses. It could be the case that people start to find about their gender identities as they enter into adolesence. It is also of little joy to see for those who belong to Others gender category increasingly find more words to describe happy moments.
+
+```{r gender_age_group, echo = FALSE}
+# Creating a dataframe that calculate the number of words used by gender and age group
+hap_gender_age <- happiness_joined %>%
+  mutate(word_count = str_count(hm)) %>%
+  group_by(gender, age_group) %>%
+  summarize(
+    num_people = n(), 
+    word_count_total = sum(word_count, na.rm = TRUE),
+    word_count_per_person = word_count_total / num_people
+  )
+
+# Visualization
+hap_gender_age %>%
+  ggplot(aes(x = age_group, y = word_count_per_person, color = gender)) +
+  geom_point() +
+  geom_line(aes(group = gender)) +
+  labs(
+    title = "The Number of Words Used to Describe Happy Moments by Gender and Age",
+    subtitle = "(from the survey of Amazon Mechanical Turk workers from 2017-03-28 to 2017-06-26)",
+    x = "Age Group", 
+    y = "Number of Words",
+    color = "Gender",
+    caption = "Source: HappyDB"
+  )
+```
+
+**Conclusion - Does gender at the intersection of age, martial status, and parenthood affect the number of words used to describe happy moments?** The analysis of the impact of gender at the intersction of the intersection of maritial status, parenthood experiences, and age groups indicate layered results. First of all, we were able to see that gender does affect the number of words used to describe happy moment in general. There were siginificant differnces in the number of words used to describe happy moments for those in others and NA gender categories. At the intersectioin of maritial status, however, it was suspected of spurious relationship where maritial status could be corrleated with time. At the intesection of parenthood, gender did show its distinct pattern where those who belonged to others categories used less words when they were parents. 
+
+**Food for thought: How does the impact of gender change at multiple intersections?** The following complex plots indicate that gender is more than one encompassing cateogory. In other words, gender, despite its distinctive pattern, is nonetheless subject to other social and cultural influences that wihtout careful attention can easily lose its explanatroy power as a dependent variable. One could use multivarite regression methods to quantify the diminishing explanatory power of gender as age, martial status, and parenthood affect are added and held constant. For instance, females in the age group of 80-90 is most reflective of only single women without parenthood experiences among many other cases. Specifically, the difference in the number of words used to describe happy moments between single female group without parenthood experiences and married female group with parenthood experiences is about 450 words per person. We then may have to ask ourselves whether gender that we have initially set out to study is still the same thing afterwards. 
+
+```{r by_gender_intersections, echo = FALSE, warning = FALSE, fig.width = 10, fig.height = 8}
+# Creating a function that creates visuals for age-specific groups at every 10 age. For instance, using a 
+
+cohort_find <- function(anyage) {
+  
+  # Defensive programming that prevents creating outputs for inappropriate ages
+  if (anyage > 100) {
+    warning("Age too big. The maximum age is in two-digits and has been forced to 99. Try age less than 100!")
+    anyage <- 99
+  } else if (!is.numeric(anyage)) {
+    warning("Age has to be numeric. Please provide the age in numeric from")
+  }
+  
+  if (length(c(anyage)) > 1) {
+    warning("You can put only one age at a time. Try using for loop and map function if needed.")
+  }
+  
+  # Skipping require(package) because the libraries are pre-loaded in the Data Preparation section
+  
+  # Creating a data frame that holds age_block information
+  happiness_age_block <- happiness_joined %>%
+    mutate(age_block = cut(age, breaks = seq(0, 100, by = 10)),
+           age_block = (as.numeric(age_group) * 10)) # Cut function creates a factor variable and it needs to be multplied by 10 to change it to numeric forms.
+
+  happiness_aged <- happiness_age_block %>%
+    filter(anyage >= age_block - 10 & anyage < age_block) %>% # filtering to the specific age block of interests. 
+    group_by(gender, age_group, marital, parenthood) %>% 
+    summarize(
+      num_people = n(), 
+      word_count_total = sum(word_count, na.rm = TRUE),
+      word_count_per_person = word_count_total / num_people
+    )
+  
+  age_group <- unique(happiness_aged$age_group) # Creating the variable for glue function used in the graph title
+
+  happiness_aged %>%
+    ggplot(aes(x = gender, y = word_count_per_person, fill = marital)) +
+    geom_col(position = position_dodge(preserve = "single")) +
+    labs(
+      title = "The Number of Words Used to Describe Happy Moments by Gender per Person",
+      subtitle = glue("colored by Maritial Status and faceted by Parenthood in the Age Group of: {age_group}"), # using glue function to change the title depending on the variable
+      x = "",
+      y = "Number of Words",
+      caption = "Source: HappyDB",
+      fill = "Martial Status"
+      ) +
+    theme(legend.position = "bottom") +
+    facet_wrap(~parenthood)
+}
+
+# Using map function to visualize the trend by the difference of 20 years. 
+map(seq(5, 105, by = 20), cohort_find) # users can use the function to specifiy the age group of interest
+```
+
+# Limitations of the project
+
+Despite extensive number of data with detailed coding book generoulsy provided by HappyDB, the data issued for this project has issues. **First of all**, there is lack of documentation on the NA value in the gender category. Without proper explanations, I could only make partial analysis about NA values in this project. Due to the project's focus on gender, I have not excluded NA values and treated it as a seperate caegory. This inherently creates room for potential misunderstanding. **Secondly**, the conclusions from this project might not be applicable to other groups due to the nature of where and how the data was collected. For instance, there might be potential bias in the analysis since the data was collected from Amazon Mechanical Workers whose profession tends to have gender imbalances as presented in many empirical studies. **Thirdly**, some of the data for the age groups of 0-10 and above 50 may not have been filled out by themselves. This can cause some measurement error. **Lastly**, the analysis is limited to the number of words used to describe happiness. *Future studies* may include finding gendered patterns by breaking the number of words into nouns, adjectives, and verbs. Also, some studies may study the number of special characters such as exclamation marks and questions marks. It will also be interesting to study the tense of the grammar to see whether happiness is memorized in the past tense, present tense, or future tense. 
+
+```{r session_info, include = FALSE}
+sessionInfo()
+```
+
