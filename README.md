@@ -6,3 +6,6 @@
 * HW07: Exploratory Data Analysis (EDA) and Regressions
 * HW06: Text Analysis using MTurk Surveys
 * Program Evalaution: Program Evaluation 
+
+
+**Please feel free to contact me if you would like to have access to the data used for Program Evaluation**
