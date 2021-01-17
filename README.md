@@ -4,4 +4,5 @@
 
 * HW08: Web Scraping & Text Analysis
 * HW07: Exploratory Data Analysis (EDA) and Regressions
+* HW06: Text Analysis using MTurk Surveys
 * Program Evalaution: Program Evaluation 
