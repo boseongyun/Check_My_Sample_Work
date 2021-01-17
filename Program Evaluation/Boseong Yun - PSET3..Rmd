@@ -1,0 +1,460 @@
+---
+title: "PS3 - Boseong Yun"
+author: "Boseong Yun"
+date: "11/03/2020"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include = F}
+# Setting global chunk options
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, echo = FALSE)
+
+# Install and load packages ---------------
+packages <- c(
+  "tidyverse",
+  "haven", 
+  "knitr",
+  "broom",
+  "dendroTools",
+  "zoo",
+  "psych",
+  "ggthemes",
+  "patchwork",
+  "stargazer",
+  "cowplot"
+)
+
+# Change to install = TRUE to install the required packages
+pacman::p_load(packages, character.only = TRUE, install = FALSE)
+
+# Load dataset ---------------
+data <- read_dta("almond_etal_2008.dta")
+attributes <- lapply(data, attr, "label")
+```
+
+1) Start by getting the descriptive statistics of birth weight in the sample, what is the mean, standard deviation, minimum, and maximum?
+
+```{r}
+# Using the describe function from the psych package
+describe(data$bweight) %>%
+  select(mean, sd, min, max) %>%
+  kable(caption = "The Descriptive Statistics of Birth Weight", row.names = FALSE)
+```
+
+
+2) Now plot one year and 28 day mortality rates against our running variable, birth weight. To do so, make bins of one ounce (28.35 grams) around the 1500 grams threshold, and get the mean mortality rate in each bin. Make a separate graph for each outcome. Describe the relationship between birth weight and mortality. Does it appear to be a discontinuity of mortality around the very low birth weight threshold? How does the number of observations in each bin affect your mean estimates?
+
+**Answer:** Generally, there seems to be negative assocation between birth weight and mortality. Specifically, increase in body weight is negatively associated with mortality rates. Additionally, the graph shows that there appears to be a discontinutiy of mortality around the low birth weight threshold of 1500 grams. There is a sharp decrease in the mortality rates right before the threshold. The number of observation affects the bias and variance of the estimates. Specifically, having a smaller bindwith will have less number of observation in each bin and will thus lessen the bias but increase the variance of the estimates. One should carefully consider the bias-variance tradeoff when setting binwidth.
+
+```{r}
+# Data Processing ---------------
+
+# Making bins of one ounce (28.35) grams around the 1500 grams threshold
+data_bin <- data %>%
+  mutate(
+    bins = floor((bweight - 1500) / 28.35),
+    white = ifelse(mom_race == 1, 1 ,0),
+    black = ifelse(mom_race == 2, 1, 0)
+  )
+
+# Caving the bin label
+bin_label <- data_bin %>%
+  group_by(bins) %>%
+  summarize(
+    min = min(bweight),
+    max = max(bweight),
+    mean = mean(bweight),
+    median = median(bweight)
+    ) %>%
+  unite(label_data, c("min", "max"), sep = "-", remove = F) %>%
+  mutate(
+    bins_gram_low = round((47:58) * 28.35, digits = 0),
+    bins_gram_up = round((48:59) * 28.35, digits = 0),
+    bins_gram_m = round((bins_gram_low+ bins_gram_up) / 2, digits = 0)
+    ) %>%
+  unite(label_bin_gram, c("bins_gram_low", "bins_gram_up"), sep = "-", remove = F)
+```
+
+
+```{r, echo = FALSE, fig.height=3, fig.width=5}
+# One-Year Moratlity Rates Visualization 
+data_bin %>%
+  group_by(bins) %>%
+  summarize(mort_mean = mean(agedth5)) %>%
+  mutate(label = bin_label$bins_gram_m) %>%
+  ggplot(aes(x = label, y = mort_mean)) +
+  geom_point() +
+  geom_vline(xintercept = 1500, linetype = 2, color = "red") +
+  scale_x_continuous(breaks = seq(1350, 1650, by = 50)) +
+  scale_y_continuous(breaks = seq(0.02, 0.09, by = 0.01)) +  
+  theme(axis.text.x = element_text(angle = 45)) +
+  labs( 
+    title = "One-Year Mortality Rates",
+    x = "Birht Weight (in grams)", 
+    y = ""
+  ) +
+  theme_stata()
+```
+
+
+```{r, echo = FALSE, fig.height=3, fig.width=5}
+# 28 Day Mortality Rates 
+data_bin %>%
+  group_by(bins) %>%
+  summarize(mort_mean = mean(agedth4)) %>%
+  mutate(label = bin_label$bins_gram_m) %>%
+  ggplot(aes(x = label, y = mort_mean)) +
+  geom_point() +
+  geom_vline(xintercept = 1500, linetype = 2, color = "red") +
+  scale_x_continuous(breaks = seq(1350, 1650, by = 50)) +
+  labs( 
+    title = "28-Day Mortality Rates",
+    x = "Birht Weight (in grams)", 
+    y = ""
+  ) +
+  theme_stata()
+```
+
+
+3) A key assumption for an RDD to provide a causal estimate is that individuals are not able to sort according to the running variable, i.e., they should not be able to manipulate its value. Discuss in your own words whether this is a reasonable assumption in this case.
+
+**Answer:**
+
+I think it is a reasonable assumption that birth weight, which is the running variable, cannot be manipulated. This is because the weight of the babies are biological in essence and are weighted in the hospitals, reducing the likelihood of manipulating the value. It could be possible, however, that some parents can try to manipulate the weight of the babies when there are government progrmas that provide assistance to the parents of under-weight babies. This may be hard to observe in practice because parents wouldn't intentionally under-feed themselves to be eligible for the programs. This can be dangerous for both the babies and the parents. Therefore, I believe that this is a reasonable assumption.
+
+
+
+4) Now plot background covariates, including mother’s age, mother’s education less than high school, gestational age, prenatal care visits, and year of birth, against birth weight as you did in point (2). Do these plots appear to be smooth around the threshold?
+
+**Answer:** Although most of the plots appear to be smooth around the threshold, the Year of Birth variable is one that does not appear to be smooth around the threshold among these five background covariates.
+
+
+```{r, echo = FALSE}
+# Saving the background covariates
+control_vars <- data_bin %>%
+  select(mom_age, mom_ed1, gest, nprenatal, yob) %>%
+  names()
+
+# Plot for Mom's Age
+plot_mage <- data_bin %>%
+  group_by(bins) %>%
+  summarize(mean = mean(mom_age)) %>%
+  mutate(label = bin_label$bins_gram_m) %>%
+  ggplot(aes(x = label, y = mean)) +
+  geom_point() +
+  geom_vline(xintercept = 1500, linetype = 2, color = "red") +
+  scale_x_continuous(breaks = seq(1350, 1650, by = 50)) +
+  labs(
+    title = "Mean Mother's Age",
+    x = "Birth Weight (in grams)",
+    y = "Age"
+  ) +
+  theme_stata()
+
+# Plot for Mom's Education (less than high school)
+plot_meduc <- data_bin %>%
+  group_by(bins) %>%
+  summarize(mean = mean(mom_ed1, na.rm = TRUE)) %>%
+  mutate(label = bin_label$bins_gram_m) %>%
+  ggplot(aes(x = label, y = mean)) +
+  geom_point() +
+  geom_vline(xintercept = 1500, linetype = 2, color = "red") +
+  scale_x_continuous(breaks = seq(1350, 1650, by = 50)) +
+  labs(
+    title = "Mean Mother's Education (less than high school)",
+    x = "Birth Weight (in grams)",
+    y = "Proportions"
+  ) +
+  theme_stata()
+  
+# Plot for Gestational Age  
+plot_gage <- data_bin %>%
+  group_by(bins) %>%
+  summarize(mean = mean(gest, na.rm = TRUE)) %>%
+  mutate(label = bin_label$bins_gram_m) %>%
+  ggplot(aes(x = label, y = mean)) +
+  geom_point() +
+  geom_vline(xintercept = 1500, linetype = 2, color = "red") +
+  scale_x_continuous(breaks = seq(1350, 1650, by = 50)) +
+  labs(
+    title = "Mean Mother's Gestational Age (in weeks)",
+    x = "Birth Weight (in grams)",
+    y = "Weeks"
+  ) +
+  theme_stata()
+
+# Plot for Prenatal Visits
+plot_npre <- data_bin %>%
+  group_by(bins) %>%
+  summarize(mean = mean(nprenatal, na.rm = TRUE)) %>%
+  mutate(label = bin_label$bins_gram_m) %>%
+  ggplot(aes(x = label, y = mean)) +
+  geom_point() +
+  geom_vline(xintercept = 1500, linetype = 2, color = "red") +
+  scale_x_continuous(breaks = seq(1350, 1650, by = 50)) +
+  labs(
+    title = "Mean Number of Prenatal Visits",
+    x = "Birth Weight (in grams)",
+    y = "Number"
+  ) +
+  theme_stata()
+
+# Plot for Year of Birth
+plot_yob <- data_bin %>%
+  group_by(bins) %>%
+  summarize(mean = mean(yob, na.rm = TRUE)) %>%
+  mutate(label = bin_label$bins_gram_m) %>%
+  ggplot(aes(x = label, y = mean)) +
+  geom_point() +
+  geom_vline(xintercept = 1500, linetype = 2, color = "red") +
+  scale_x_continuous(breaks = seq(1350, 1650, by = 50)) +
+  labs(
+    title = "Mean Year of Birth",
+    x = "Birth Weight (in grams)",
+    y = "YOB"
+  ) +
+  theme_stata()
+
+# Display Plots
+plot_mage
+plot_meduc
+plot_gage
+plot_npre
+plot_yob
+```
+
+
+
+
+5) Now formalize the evidence on smoothness of the covariates by estimating regressions of
+the form
+$𝐵_i=𝛼_0 +𝛼_1𝑉𝐿𝐵𝑊_i +𝛼_2𝑉𝐿𝐵𝑊_i ∗(𝑔_i −1500)+𝛼_3(1−𝑉𝐿𝐵𝑊_i)∗(𝑔_i−1500)+𝜀_i$
+
+Where $B_i$ is a background covariate, $𝑉𝐿𝐵𝑊_i$ indicates that a newborn had very low birth weight
+(<1500 grams), $g_i$ is birth weight and $𝜀_i$ a disturbance term. Use a caliper of 85 grams (above
+and below the threshold). Which coefficient provides a test of smoothness is the vicinity of
+the very low birth weight threshold? Is there any evidence of discontinuities around the
+threshold? If they were, how could these affect your RDD estimates?
+
+**Answer:** The coefficient for VLBM, $\alpha_1$ in the problem set, provides a test for smoothness in the very low birth weight threshold. 
+
+The estimates for VLBM are statistically significant for Mom's Age, Gestatation, and Year of Birth at the 0.05 siginificance level within the calipers of 85 grams. These indiciate evidence of discontinuties around the threshold and break the smoothness assumption that posits there are no differences other than the treatment status in the observations within the calipers. With this assumption broken, my RDD estimates no longer identify the unbiased treatment effects. 
+
+
+```{r}
+# Setting the caliper level
+caliper <- 85
+
+# Creating a smoothness df
+smooth_df <- data_bin %>%
+  select(control_vars, bweight, agedth4, agedth5) %>%
+  mutate(
+    VLBM = ifelse(bweight < 1500, 1, 0),
+    bweight_low = bweight - 1500
+    ) %>%
+  filter(bweight >= 1500 - caliper & bweight <= 1500 + caliper)
+
+
+# Creating the output path for balance regression
+
+output <- list()
+
+for(i in 1:5) {
+  
+  output[[i]] <- lm(unlist(smooth_df[i]) ~ VLBM + VLBM*bweight_low + 
+                      (1 - VLBM)*bweight_low, data = smooth_df )
+}
+
+# Giving the names to the regression outputs
+output %>%
+  map(~ tidy(.)) %>%
+  set_names(nm = control_vars) %>%
+  bind_rows(.id = "vars") %>% 
+  round_df(digits = 6) %>%
+  kable(caption = "Coefficients Output for Background Covariates (85g calipers)")
+```
+
+ 
+6) Now get an estimate of the size of the discontinuity in one---year and 28---day mortality,
+around the 1500 grams threshold. As above, use a caliper of 85 grams. To do so, estimate the following model:
+$Y_i=𝛼_0 +𝛼_1𝑉𝐿𝐵𝑊_i +𝛼_2𝑉𝐿𝐵𝑊_i ∗(𝑔_i −1500)+𝛼_3(1−𝑉𝐿𝐵𝑊_i)∗(𝑔_i−1500)+𝜀_i$
+where $Y_i$ is the outcome of interest Interpret the coefficients $\alpha_1$ , $\alpha_2$, and $\alpha_3$.
+
+**Answer:**
+
+I have referred to Professor Grogger's **[Piazza Post](https://piazza.com/class/kf4jmapgvtd593?cid=91)** for answering this question.
+
+For 1-Year Mortality Rates: The coefficient VLBM, $\alpha_1$ in the problem set, indicates the magnitude of discontinuity at the threshold with the statistically significant size of -0.009510. The coefficient $\alpha_2$ indicates the slope of the line to the left of the threshold and the coefficient $\alpha_3$ indicates the slope of the line to the right of the threshold.
+
+For 28 Days Mortality Rates: The coefficient VLBM, $\alpha_1$ in the problem set, indicates the magnitude of discontinuity at the threshold with the statistically significant size of-0.008781. The coefficient $\alpha_2$ in the problem set indicates the slope of the line to the left of the threshold and the coefficient $\alpha_3$ indicates the slope of the line to the right of the threshold.
+
+```{r, echo = FALSE}
+# 1 Year mortality
+mort_1yr_85 <- lm(agedth5 ~ VLBM + VLBM*bweight_low + (1 - VLBM)*bweight_low, data = smooth_df)
+
+# 28 days mortality
+mort_28d_85 <- lm(agedth4 ~ VLBM + VLBM*bweight_low + (1 - VLBM)*bweight_low, data = smooth_df)
+
+# Stargazer
+df1 <- tidy(mort_1yr_85) %>%
+  mutate(var = "1-Year (Calipers 85g) U/C")
+
+df28 <- tidy(mort_28d_85) %>%
+  mutate(var = "28-Day (Calipers 85g) U/C")
+
+df1 %>%
+  bind_rows(df28) %>%
+  select(var, everything()) %>%
+  round_df(digits = 6) %>%
+  kable(caption = "Mortality Rates for 1 Year and 28 Days (Covariates Uncontrolled)")
+```
+
+
+7) Now add covariates to the model in (6). Include mother’s age, indicators for mother’s education  and race, indicators for year of birth, indicators for gestational age and prenatal care visits. Use the dummies provided in the data for gestational age and prenatal care visits. Compare your estimates to those obtained in (6) and explain the difference if any.
+
+**Answer:** For both 1-year mortality and 28-day mortality rates, it can be seen that both the size of the estimates and the standard errors for VLBM decreased compared to the estimates obtain in (6). These difference come from holding the covariates constant some of which were not smooth around the threshold. That is, these estimates partial out the differences that were correlated with the differences in the background covariates. 
+
+```{r, echo = FALSE}
+# Control Coalso variates 
+control_covariates <- data_bin %>%
+  select(white, black, mom_age:gest_wks4, nprenatal_1:nprenatal_4, yob) %>%
+  names()
+
+# Creating a lm_df
+lm_df <- data_bin %>%
+  select(bweight, agedth4, agedth5, control_covariates) %>%
+  mutate(
+    VLBM = ifelse(bweight < 1500, 1, 0),
+    bweight_low = bweight - 1500
+  ) %>%
+  filter(bweight >= 1500 - caliper & bweight <= 1500 + caliper)
+ 
+# Running Regressions
+mort_1yr_con <- lm(agedth5 ~ VLBM + VLBM*bweight_low + (1 - VLBM)*bweight_low
+           + mom_age + mom_ed1 + mom_ed2 + mom_ed3 + mom_ed4
+           + white + black + yob + gest_wks1 + gest_wks2 + gest_wks3
+           + nprenatal_1 + nprenatal_2 + nprenatal_3, data = lm_df)
+
+mort_28day_con <- lm(agedth4 ~ VLBM + VLBM*bweight_low + (1 - VLBM)*bweight_low
+           + mom_age + mom_ed1 + mom_ed2 + mom_ed3 + mom_ed4
+           + white + black + yob + gest_wks1 + gest_wks2 + gest_wks3
+           + nprenatal_1 + nprenatal_2 + nprenatal_3, data = lm_df)
+```
+
+
+```{r, echo = FALSE}
+df1_con_85 <- tidy(mort_1yr_con) %>%
+  mutate(var = "1-Year (Calipers 85g)")
+
+df28_con_85 <- tidy(mort_28day_con) %>%
+  mutate(var = "28-Day (Calipers 85g)")
+
+df1_con_85 %>%
+  bind_rows(df1) %>%
+  select(var, everything()) %>%
+  kable(caption = "Controlled vs Uncontrolled Estimates for 1-Year Mortality Rates")
+
+df28_con_85 %>%
+  bind_rows(df28) %>%
+  select(var, everything()) %>%
+  kable(caption = "Controlled vs Uncontrolled Estimates for 28-Day Mortality Rates")
+```
+
+
+
+8) Use the model in (7) to assess the sensitivity of the estimates to the use of different calipers. Use calipers of 30 and 120 grams (above and below the 1500 threshold). Are the estimates any different to those obtained in (7)? What is the tradeoff that we face when decreasing the caliper?
+
+**Answer:** As the area of calipers increased, both the size of the estimates and the standard errors for VLBM in both 1-year and 28-days mortality rates have decreased compared to those obtained in (7). These show the bias-variance tradeoff when choosing the levels of caliper. Although lower caliper reduces the bias, it increases the variance due to low number of observations.
+
+```{r}
+# Control Covariates 
+control_covariates <- data_bin %>%
+  select(white, black, mom_age:gest_wks4, nprenatal_1:nprenatal_4, yob) %>%
+  names()
+
+# Calipers
+lcaliper <- 30
+ucaliper <- 30 
+
+# Creating a lm_df
+lm_df_cali <- data_bin %>%
+  select(bweight, agedth4, agedth5, control_covariates) %>%
+  mutate(
+    VLBM = ifelse(bweight < 1500, 1, 0),
+    bweight_low = bweight - 1500
+  ) %>%
+  filter(bweight >= 1500 - lcaliper & bweight <= 1500 + ucaliper)
+ 
+# Running Regressions
+mort_1yr_con_30 <- lm(agedth5 ~ VLBM + VLBM*bweight_low + (1 - VLBM)*bweight_low
+           + mom_age + mom_ed1 + mom_ed2 + mom_ed3 + mom_ed4
+           + white + black + yob + gest_wks1 + gest_wks2 + gest_wks3
+           + nprenatal_1 + nprenatal_2 + nprenatal_3, data = lm_df_cali)
+
+mort_28day_con_30 <- lm(agedth4 ~ VLBM + VLBM*bweight_low + (1 - VLBM)*bweight_low
+           + mom_age + mom_ed1 + mom_ed2 + mom_ed3 + mom_ed4
+           + white + black + yob + gest_wks1 + gest_wks2 + gest_wks3
+           + nprenatal_1 + nprenatal_2 + nprenatal_3, data = lm_df_cali)
+
+mort_1yr_con_30 <- tidy(mort_1yr_con_30) %>%
+  mutate(var = "1-Year (Calipers 30g)")
+
+mort_28day_con_30 <- tidy(mort_28day_con_30) %>%
+  mutate(var = "28-Day (Calipers-30g)")
+
+# Calipers
+lcaliper_2 <- 120
+ucaliper_2 <- 120 
+
+# Creating a lm_df
+lm_df_cali_2 <- data_bin %>%
+  select(bweight, agedth4, agedth5, control_covariates) %>%
+  mutate(
+    VLBM = ifelse(bweight < 1500, 1, 0 ),
+    bweight_low = bweight - 1500
+  ) %>%
+  filter(bweight >= 1500 - lcaliper_2 & bweight <= 1500 + ucaliper_2)
+ 
+# Running Regressions
+mort_1yr_con_120 <- lm(agedth5 ~ VLBM + VLBM*bweight_low + (1 - VLBM)*bweight_low
+           + mom_age + mom_ed1 + mom_ed2 + mom_ed3 + mom_ed4
+           + white + black + yob + gest_wks1 + gest_wks2 + gest_wks3
+           + nprenatal_1 + nprenatal_2 + nprenatal_3, data = lm_df_cali_2)
+
+mort_28day_con_120 <- lm(agedth4 ~ VLBM + VLBM*bweight_low + (1 - VLBM)*bweight_low
+           + mom_age + mom_ed1 + mom_ed2 + mom_ed3 + mom_ed4
+           + white + black + yob + gest_wks1 + gest_wks2 + gest_wks3
+           + nprenatal_1 + nprenatal_2 + nprenatal_3, data = lm_df_cali_2)
+
+mort_1yr_con_120 <- tidy(mort_1yr_con_120) %>%
+  mutate(var = "1-Year (Calipers 120g)")
+
+mort_28day_con_120 <- tidy(mort_28day_con_120) %>%
+  mutate(var = "28-Day (Calipers 120g)")
+```
+
+```{r}
+mort_1yr_con_30 %>%
+  bind_rows(df1_con_85) %>%
+  bind_rows(mort_1yr_con_120) %>%
+  filter(term == "VLBM") %>%
+  kable(caption = "The Estimates for 1-Year Mortality Rates")
+
+mort_28day_con_30 %>%
+  bind_rows(df28_con_85) %>%
+  bind_rows(mort_28day_con_120) %>%
+  filter(term == "VLBM") %>%
+  kable(caption = "The Estimates for 28-Day Mortality Rates")
+```
+
+
+
+9) Synthetize your findings and discuss what kind of supplementary information would you need to make a cost-benefit analysis of treatment received by newborns close to the very low birth weight threshold.
+
+**Answer:** 
+
+To synthesize my findings, it can be seen that the mortality rates decrease with some magnitude just before the threshold levels. This is plausible because these babies might get additional treatment for their very low weight statuts. It was also found that the mortality rates increased as the birth weight decreased far below the threshold. These findings, however, must be reconciled with the fact that the estimates were changing depending on the level of calipers and that there could be other unobservable characteristics excluded from the regression model that may influence the estimates. In general, however, we can see that children born right underneath the threshold have lower mortality rates. 
+
+To evaluate the cost-benefit analysis, I will need supplementary information about the hosptial costs for those who fall short of the low-birth threshold. Additionally, it would be nice to know about the social benefits measured in dollars by saving the baby with the treatment. This way, we can measure whether the cost of the treatment outweighs the benefits and vice versa. 
