@@ -1,0 +1,547 @@
+---
+title: "Boseong Yun - PSET 1"
+author: "Boseong Yun"
+date: "1/25/2021"
+output: pdf_document
+---
+
+```{r, include=FALSE}
+# Global code chunk settings --------------------------------------
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, error = FALSE)
+
+# Install and load packages --------------------------------------
+packages <- c(
+  "tidyverse",
+  "ggthemes", # used for professional plots
+  "dendroTools", # used for rounding by dataframe
+  "here", # used for reproducibility
+  "caret", # used for splitting the data
+  "broom", # used for tidying regression outputs
+  "leaps", # used for model selection
+  "data.table", # used for reading csv (fread function)
+  "ISLR", # Introduction to Statistical Learning in R (Hitters data)
+  "MASS", # mvrnorm: multivairate normal distribution
+  "patchwork", # Combining plots
+  "latex2exp" # TeX
+)
+
+# Change to install = TRUE to install the required packages--------------------------------------
+pacman::p_load(packages, character.only = TRUE, install = FALSE)
+```
+
+
+1.a. Generate the following figure: for test statistics with null distribution (2), plot
+the probability of false rejection of the joint null (that the p individual null distributions are the true distributions) at critical level *alpha* = 0.95 against the value of p, using the Bonferroni correction.
+
+**Answer: I have created test statistics that follow the null distribution given in (2). Afterwards, I plotted the probability of false rejection at critical level 0.95 against the value of p using the Bonferroni correction.**
+
+```{r warning=FALSE, message=FALSE, cache = TRUE}
+# Creating test statistics with null distribution (2)
+# Test Statistics with: n = 10000, mean = 0, sd = 1 at critical level = 0.05 
+
+# Creating a for loop --------------------------------------------------------------
+
+# Set Seed
+set.seed(1212345)
+
+# Creating the output path
+output <- tibble()
+
+# Setting the number of simulations
+num_sim <- 10000
+
+# Executing a for loop
+for(i in 1:100) {
+  
+  # Setting the significance level
+  alpha <- 0.05
+  alpha_bf <- 0.05 / i # Bonferroni Correction
+  
+  # Creating a p_value df
+  pval_df <- mvrnorm(n = 1000, mu = rep(0, i), Sigma = diag(i)) %>%
+    as_tibble() %>%
+    mutate_all(~ pnorm(abs(.), lower.tail = FALSE) * 2)
+  
+  # Creating the rejection
+  rej <- sum(rowSums(pval_df < alpha) > 0) / 1000
+  rej_bf <- sum(rowSums(pval_df < alpha_bf) > 0) / 1000
+    
+  # Assigining value to the output dataframe
+  output[i, 1] <- i
+  output[i, 2] <- rej
+  output[i, 3] <- rej_bf
+
+}
+
+# Creating a plot --------------------------------------------------------------
+plot_a <- output %>%
+  set_names(c("num", "rej", "rej_bf")) %>%
+  ggplot(aes(x = num)) +
+  geom_point(aes(y = rej), size = 0.5, color = "red") +
+  geom_point(aes(y = rej_bf), size = 0.5, color = "blue") +
+  geom_line(aes(y = rej), color = "red") +
+  geom_line(aes(y = rej_bf), color = "blue") +
+  labs(
+    x = "Number of Parameters",
+    y = "Probability",
+    title = "The Probability of False Rejection at Critical Level = 0.95",
+    subtitle = "(using Bonferroni correction)"
+  ) +
+  scale_x_continuous(breaks = seq(0, 100, by = 10)) +
+  annotate("text", label = "Without Correction", x = 90, y = 0.95, color = "red") +
+  annotate("text", label = "With Correction", x = 90, y = 0.1, color = "blue") + 
+  theme_stata()
+  
+# Showing the plot
+plot_a
+```
+
+
+1.b  **Answer: I have created two plots where the probability of false rejection at critical level 0.95 is uncorrected and corrected. I have done it by creating a nested for loop where for every value of $\rho$ in 0, 0.25, 0.5, 0.75, and 1, I have plotted the probabilty of rejection against the number of parameters. I have used RowSums function to find out the number of rejections in each test and divided the sum by the number of simluations.** 
+
+*(Thank you so much to all TAs who made this possible!)*
+
+```{r, cache=TRUE}
+# Creating a function that creates a positive semi-definite matrix as a function of rho and p--------------------
+rho_p <- function(rho_val, p) {
+  
+  # specifying the rho value
+  rho <- rho_val
+  
+  # creating a positive semi-definite matrix
+  mat <- matrix(rep(rho, p^2), nrow = p, ncol = p)
+  diag(mat) <- 1 
+  
+  # return
+  return(mat)
+}
+
+# Creating a for loop --------------------------------------------------------------
+
+# Set Seed
+set.seed(12555)
+
+# Creating the output path
+output_list <- list() 
+output_df <- data.frame() 
+
+# Setting the number of simulations
+num_sim <- 10000
+
+# Executing a nested for loop: for i in seq(0, 1, by = 0.25), the loop iterates from 1 to 100.
+for(i in seq(0, 1, by = 0.25)) {
+  
+  for(j in 1:100) {
+    
+    # Setting the significance level
+    alpha <- 0.05
+    alpha_bf <- 0.05 / j
+    
+    # Creating the Sigma matrix
+    mat <- rho_p(rho_val = i, p = j)
+    
+    # Creating a p-value df
+    pval_df <- mvrnorm(n = num_sim, mu = rep(0, j), Sigma = mat) %>%
+      as_tibble() %>%
+      mutate_all(~ pnorm(abs(.), lower.tail = FALSE) * 2)
+    
+    # Creating the rejection
+    rej <- sum(rowSums(pval_df < alpha) > 0 ) / num_sim
+    rej_bf <- sum(rowSums(pval_df < alpha_bf) > 0) / num_sim
+    
+    # Assigning the output dataframe
+    output_df[j, 1] <- j
+    output_df[j, 2] <- rej
+    output_df[j, 3] <- rej_bf
+    output_df[j, 4] <- i
+  }
+  
+  # saving the  index number in integer units ranging from 1 to 5
+  index <- (i*4) + 1
+  
+  # Saving each dataframe into the list
+  output_list[[index]] <- output_df %>%
+    set_names(c("num", "rej", "rej_bf", "rho"))
+}
+
+# Converting the output list into a dataframe
+complete_df <- output_list %>%
+  bind_rows() %>%
+  mutate(rho = factor(rho, levels = seq(0, 1, by = 0.25)))
+```
+
+
+```{r}
+# Displaying the uncorrected plot as a function of rho
+complete_df %>%
+  ggplot(aes(x = num, y = rej, color = rho)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    x = "Number of Parameters",
+    y = "Probability",
+    title = "The Probability of False Rejection at Critical Level = 0.95",
+    subtitle = "(without the Bonferroni correction)",
+    color = latex2exp::TeX("$\\rho$")
+  ) +
+  theme_stata()
+
+# Displaying the corrected plot as a function of rho
+complete_df %>%
+  ggplot(aes(x = num, y = rej_bf, color = rho)) +
+  geom_point() +
+  geom_line() +
+  geom_hline(yintercept = 0.05) +
+  labs(
+    x = "Number of Parameters",
+    y = "Probability",
+    title = "The Probability of False Rejection at Critical Level = 0.95",
+    subtitle = "(with the Bonferroni correction)",
+    color = latex2exp::TeX("$\\rho$")
+  ) +
+  theme_stata() 
+```
+
+
+1.c. The biggest value of $\rho$ that one can use such that sigma remains a covariance matrix?
+
+**Answer: The biggest value of $\rho$ that one can use such that sigma remains a covariance matrix is any positive value very close to 1 but not actually 1. If $\rho$ takes the value of 1, the covariance matrix will no longer be a positive-definite matrix because one of the eigenvalues will be 0. Also, it means that the model will suffer from perfect multicolinearity.**
+
+2-a) Download the data set Hitters from the ISLR library –the R CRAN library complementing
+the course’s textbook.
+
+```{r}
+# Loading the Hitters dataset 
+hitters <- ISLR::Hitters
+```
+
+2-b) Divide the dataset into a training set of ntrain observations and a test set of ntest observations.
+
+**Answer: There is a tradeoff between having a big training & small test versus small training & big test. For instance, the parameter estimates will have higher variance with less training data and the performance statistics will have higher variance with less testing data. Although it depends on the model, more observations in the training data set causes less bias but high variance (overfitting) and more observations in the test data set causes high bias but less variance (underfitting). While there is no absolute method for determining the ideal ratio since the split is dependent on the given data, it is useful to think about the bias-variance tradeoff when making the decision.**
+
+**According to the Pareto principle, 80/20 is the preferred ratio for dividing the training data and test data. Some people also use the 75/25 ratio. These ratios are reasonable because these ratios ensure that both the bias and variance are small. The optimal ratio must be calculated in consideration of the dataset given at hand.**
+
+```{r, cache = TRUE}
+# According to section 6.5 from ISLR, the data has missing value
+# Hence, I clean the data prior to splitting data & performing analyses
+
+# hitters cleaned to hit
+hit <- hitters %>%
+  drop_na()
+
+# Dividing the dataset into a traning set of ntrain obs and a test set of ntest obs
+# Reference: https://stackoverflow.com/questions/47210486/split-into-training-and-testing-set-in-r
+
+# creating indices using the caret package based on the outcome variable
+train_index <- createDataPartition(y = hit$Salary, p = 0.8, list = FALSE)
+
+# Randomly dividng the dataset into training and test data
+hit_train <- hit[train_index, ]
+hit_test <- hit[-train_index, ]
+```
+
+2-c) Using the training data, select the model made of the 7 coefficients with the smallest
+p-values according to the regression fit of the full model.
+
+```{r}
+# Linear Regression: Regress Salary on other independent variables
+lm_df <- lm(Salary ~. , data = hit_train) %>%
+  tidy() %>%
+  arrange(p.value) %>%
+  head(n = 8)
+
+# 7 Coefficients with the smallest p-values
+lm_df %>%
+  dplyr::select(term, estimate) %>%
+  knitr::kable(
+    caption = "The Best Model Using the Smallest P-Value of the Full Model"
+  )
+
+# Model made of the 7 coefficients with the smallest p-values
+reg_c <- lm(Salary ~ Walks + PutOuts + Division + AtBat + CRuns + Assists + CWalks, data = hit_train)
+```
+
+
+
+2-d) d. Using the training data, select the best model made of 7 coefficients according to
+the forward stepwise selection procedure (p. 247 for hints). You do not need to code the
+procedure yourself –use an R package!– but explain what this procedure does, and how
+it is different from the one in c.
+
+**Answer: (Source:Pg. 78-79 ISLR) The forward stepwise selection procedure starts with the null model that contains only the intercept. It then adds the coefficients that results in the lowest RSS until some stopping conditions. It has the risks of including variables in the early stage that later become redundant. This is different from c where the proceudre starts from the full model and remove variables that are the least significant.**
+
+```{r}
+# Resource: Section 6.5.1 from ISLR
+fwd_md <- regsubsets(Salary ~ ., data = hit_train, 
+                     method = "forward",
+                     nvmax = 19)
+
+# 7 Coefficients found using the forward selection procedure
+coef(fwd_md, 7) %>%
+  knitr::kable(caption = "The Best Model Using the Forward Stepwise Selection Procedure",
+               col.names ="Estimates")
+
+# Saving the lm object with 7 coefficients found using the forward selection procedure
+reg_d <- lm(Salary ~ AtBat + Hits + CAtBat + CHits + CRuns + Division + PutOuts, data = hit_train)
+```
+
+
+2-e) Using training data, select the best model made of 7 coefficients according to the
+best subset procedure (p. 244 for hints).
+
+```{r}
+# Resource: Section 6.5.1 from ISLR
+fwd_best <- regsubsets(Salary ~ ., data = hit_train, nvmax = 19)
+
+# 7 Coefficients found using the best subset procedure
+coef(fwd_best, 7) %>%
+  knitr::kable(caption = "The Best Model Using the Best Subset Procedure",
+               col.names = "Estimates")
+
+# Saving the lm object with 7 coefficients found using the best subset procedure
+reg_e <- lm(Salary ~ Walks + CAtBat + CHits + CRuns + CWalks + Division + PutOuts, data = hit_train)
+```
+
+2-f. Compute the sample mean squared error in the test set for each method fitted in
+c, d and e, and collect the results in a table.
+
+**Answer: In this given dataset, the sample mean squared error in the test for method c (selecting the smallest p-value) is the smallest. It is also important to notice that the difference in the sample mean squared error in the test for method d (forward selection) and method e (best subset) is relatively negligible. I present the change in the sample mean squared error in the test against the number of coefficients in 2-g to further investigate the differences.**
+
+
+```{r}
+# Saving the sample mean squared error in the test set for each method
+c <- mean((hit_test$Salary - predict.lm(reg_c, hit_test))^2)
+d <- mean((hit_test$Salary - predict.lm(reg_d, hit_test))^2)
+e <- mean((hit_test$Salary - predict.lm(reg_e, hit_test))^2)
+
+# Creating the dataframe
+data.frame(
+  "Fitted Models" = c("c", "d", "e"), # perhaps change the names to lowest p-val, backward, best subset
+  "Sample Mean Squared Errors" = c(c, d, e)
+  ) %>%
+  knitr::kable(
+    caption = "The Sample Mean Squared Error in the Test set for Each Method"
+  )
+```
+
+
+2-g. Repeat exercises c-f for different sizes of the subset of coefficients, and present your results in an extended table or plot.
+
+**Answer: The following table shows that there is some variability in performance when the number of coefficient is low. However, the differences in the sample mean squared errors become miniscule as the size of coefficients grows**
+
+```{r}
+# Creating a function that returns the sample mean squared errors for model c
+fun_c <- function(model, n) {
+  
+  # Creating a vector of regressors using the tidy function
+  vars <- model %>%
+    tidy() %>%
+    filter(term != "(Intercept)") %>%
+    arrange(p.value) %>%
+    head(n = n) %>%
+    pull(term) %>%
+    str_replace(pattern = "DivisionW", replacement =  "Division") %>%
+    str_replace(pattern = "LeagueN", replacement = "League") %>%
+    str_c(collapse = " + ") # saves the coefficients as a character vector seperated by +
+  
+  # Creating a formula
+  form <- as.formula(paste("Salary ~", vars)) # turning it into as formula
+  
+  # Fitting the model
+  mod <- lm(form, data = hit_train)
+  
+  # Extracting the sample mean sqaured error 
+  result <- mean((hit_test$Salary - predict.lm(mod, hit_test))^2)
+  return(result)  
+}
+
+# Creating a function that returns the sample mean squared errors for model d and e
+fun_de <- function(model, n) {
+  
+  # Creating a vector of regressors
+  vars <- coef(model, n) %>%
+    names() %>%
+    .[-1] %>%
+    str_replace(pattern = "DivisionW", replacement =  "Division") %>%
+    str_replace(pattern = "LeagueN", replacement = "League") %>%
+    str_c(collapse = " + ")
+  
+  # Creating a formula
+  form <- as.formula(paste("Salary ~", vars))
+  
+  # Fitting the model
+  mod <- lm(form, data = hit_train)
+  
+  # Extracting the sample mean sqaured error 
+  result <- mean((hit_test$Salary - predict.lm(mod, hit_test))^2)
+  return(result)
+}
+
+# Using a for loop to build a dataframe ---------------------------------
+
+# Saving the output path
+output <- tibble(
+  "Num. Parameters" = 1:10, 
+  c = 1:10,
+  d = 1:10,
+  e = 1:10
+  ) %>%
+  mutate_all(as.numeric)
+
+# A for loop to save the outputs
+for(i in 1:10) {
+  
+  output[i, 2] <- fun_c(reg_c, i)
+  output[i, 3] <- fun_de(fwd_md, i)
+  output[i, 4] <- fun_de(fwd_best, i)
+  
+}
+
+# The output
+output %>%
+  knitr::kable(
+    caption = "The Sample Mean Squared Errors for model c, d, e",  
+    col.names = c("Num of Parameters", "Model C", "Model D", "Model E")
+    )
+```
+
+
+2-h. bonus question: For selecting larger subsets with the best subset selection method,
+compare the performance of the package leaps with that of bestsubset.2 Consider
+adding interactions.
+
+**Answer: I have tried to downnload the package leaps using the link at the bottom of the homework document. Unfortunately, some of the dependent packages were not compatible with my latest version of R and hence I was not able to use them. **
+
+2-i. Can you suggest a more efficient way to split and use the data as training and testing sets? 
+
+**Answer: Yes, we can use a K-fold cross-validation approach where we can divide the training and validation data sets into K subsets where we treat the kth subset and the rest subsets as validation and traning sets for every k to K. According to ISLR, using k = 5 or k = 10 have shown empirically to yield test error rates that suffer neither from excessivel high bias nor from very high variance (page. 184) ** 
+
+```{r ready-made}
+### if you don't yet have data.table, run install.packages("data.table")
+biketab <- fread("bikeshare.csv")
+
+# tell R which are factors
+biketab[, c("dteday", "mnth","season","weekday","hr","weathersit") := list(
+  factor(dteday), factor(mnth), factor(season), 
+  factor(weekday), factor(hr), factor(weathersit))]
+
+####### Q1: outliers and FDR
+
+## the next command calculates total cnt by day, 
+# also keeping track of the corresponding yr and mnth id.
+daytots <- biketab[, list(total=sum(cnt)), by=c("dteday","yr","mnth")]
+row.names(daytots) <- daytots$dteday
+
+# simple regression
+daylm <- glm(total ~ yr*mnth, data=daytots)
+```
+
+3-a. **Answer: The glm function does not return $R^2$. Since the lm function returns $R^2$ with the same coefficients, I use the information obtained from the lm function to answer this question. I also provide an additinal answer where I compute using the $Psuedo-R^2$** 
+
+```{r}
+# daylm object using the lm function
+daylm1 <- lm(total ~ yr + mnth, data = daytots)
+daylm2 <- lm(total ~ yr*mnth, data = daytots)
+
+# Calculating the pseudo R-Squared using the deviances
+pseudo <- (1 - (daylm$deviance / daylm$null.deviance))
+
+# Sum of Squared errors
+sse_daylm <- sum((daylm$residuals)^2)
+
+# Printing the output
+cat("The in-sample sum of squared errors is", sse_daylm)
+cat("The R-Squared is", summary(daylm2)$r.squared)
+cat("The Adjusted R-Squred is", summary(daylm2)$adj.r.squared)
+cat("The Pseudo R-Squared is", pseudo)
+```
+
+3-1b. The model *daylm* has been fitted using the Ordinary Least Squares Method where the method minimizes the sum of squared residuals. The model allows us to find the average change in total sales for year, month, and the interaction between month and year associated with each day (observation *i* refers to each day). The mathematical formula for daylm is defined as:
+
+
+$$
+Total_i = \beta_0 + \beta_1Year_i + \beta_2Month_j + \beta_3Year_iMonth_j + \epsilon_i
+$$
+
+and
+
+$$
+E(Total | Year, Month) = \beta_0 + \beta_1Year_i + \beta_2Month_j + \beta_3Year_iMonth_j
+$$
+
+where
+
+$$
+Y \sim N(X\beta, \sigma^2I_n)
+$$
+and 
+
+$$
+f_y(y; \beta, \sigma^2) = \frac{1}{(2\pi\sigma^2)^\frac{2}{n}}exp[-\frac{1}{2\sigma^2}(y - X\beta)^T(y -X\beta)]
+$$
+
+The implied probability model forms the basis of inference. I provide further information about the model by interpreting the regression outputs produced below.
+
+
+```{r}
+# Printing out the regression outputs in a tidy table
+daylm %>%
+  tidy() %>%
+  round_df(digits = 5) %>%
+  set_names(str_to_title(names(.))) %>%
+  knitr::kable(
+    caption = "The Regression Outputs for the model daylm"
+  )
+```
+
+The interpretation shows that the total sales are going to increase by **1888.87 + 490.0610 + (-54.38698)** dollars on average in Februrary, 2012 compared to January 2011 (the base timeline). In 2011 Februray, the total sales are going to rise by **490.06** dollars on average relative to January 2011. It is important to notice that the synergy effect between year and month must be carefully read in order to correctly find out the impact of year, month, and their synergy effects on total sales in this model. 
+
+Although it requires more information about the purpose and assumptions behind the model to evaluate its strength and weaknesses, the model *daylm* does not seem to maintain its model assumptions. Primarily, the model assumes that the variance is a constant. However, it is reasonable to suspect hetereoskedasticity because bike sales are more likely to be sold during June or July than December or January. This can break the constant variance assumption and weaken or invalidate our inferences. 
+
+Additionally, I believe that the model should have more explanatory variables in the model. Specifically, there are many more important factors other than year and month that describe the total sales of bike. For instance, it is important to have information about the costs of public transportation, the costs of parking space, traffic load, GDP, and many others to find out what drives the bike sales. This  hints at potential omitted variable bias problems where the omitted variables are corrleated with independent and dependent variables. On a policy side, this would allow those who are in the bike business to develop specific business strategies to boost bike sales. Thus, I think the model should have more explanatory variables in the model. 
+
+
+3-1c. **Answer: The p-values are generated and calculated from a normal distribution where Z ~ N(0, 1). That is, the p-values correspond to a set of p-values for standard normal random variables. The distributiuon of p-value is going to be uniform when the null hypothesis is true. Also, we expect the distribution to be skewed towards 0 (small) when the null hypothesis is not true and thus has some predictive signal. That is, small p-values indicate a possible outlier day because the probability of happening is extreme. Further analysis will be revealed in the next question.**
+
+```{r}
+# Standardized Residuals for daylm
+std_residuals <- rstandard(daylm)
+
+# Calcluating the p-value
+p_vals <- (pnorm(abs(std_residuals), lower.tail = FALSE) * 2)
+```
+
+
+3-d. Plot the p-value distribution. What does it tell you about the assumptions of the probability model we used for our regression? Discuss.
+
+**Answer: The histogram shows that it is not uniformly distributed. Specifically, the histogram is skewed to the right. This suggests that some of the assumptions of the probablity model we used for our regression are not met. This issue can be problematic because it can invalidate our inferences. As the simulated histogram shows, the p-values has to be uniformly distributed under true null hypothesis. This suspcious result links back to the potential criticism we made in 3b about how the assumptions of the probability model could be broken. **
+
+```{r}
+# Histogram of P-Values
+hist(p_vals,
+     main = "The Histogram of P-Values", 
+     xlab = "P-Value")
+```
+
+
+```{r}
+# Simulating the TRUE null hypothesis
+null <- rnorm(n = 10000) %>%
+  as_tibble() %>%
+  mutate(
+    value = pnorm(abs(value), lower.tail = FALSE) * 2
+  )
+
+# The histogram of null P-Values
+hist(null$value,
+     main = "The Simulated Histogram of P-Values (Under True Null)",
+     xlab = "P-Value"
+     )
+```
+
+
+3-e. Consider the drawing on the second to last slide of the deck
+of Lecture 2. Produce the equivalent drawing to illustrate the omitted variable bias
+phenomenon.
+
+**Answer: Professor Pouliot demonstrated this problem in his third lecture. As the drawings show, the estimates and error are well defined for the long regression on the column sapce (plane) spanned by both X1 and X2. On the other hand, the estimates and errors for the short regression are poorly defined because the column space is only a line. This illustrates omitted variable bias where the short regression fails to fully capture the extent of estimates and errors due to low dimensionality**
