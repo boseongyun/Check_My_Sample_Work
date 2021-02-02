@@ -10,4 +10,4 @@
 * R Shiny (Dashboard & Leafelt) Interactive Map (**to be updated soon**)
 
 
-*Notes: Please feel free to contact me if you would like to have access to the data used for Program Evaluation*
+*Notes: Please feel free to contact me if you would like to have access to the data used for any of the projects*
