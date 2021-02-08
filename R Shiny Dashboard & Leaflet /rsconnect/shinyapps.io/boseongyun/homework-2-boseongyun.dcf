@@ -1,0 +1,13 @@
+name: homework-2-boseongyun
+title: homework-2-boseongyun
+username:
+account: boseongyun
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3594053
+bundleId: 4192387
+url: https://boseongyun.shinyapps.io/homework-2-boseongyun/
+when: 1612715264.36678
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: Map - Choropleth 1.png|Map - Choropleth 2.png|Map 3 - StreetShape.png|question_2.R|README.md|saved.R
