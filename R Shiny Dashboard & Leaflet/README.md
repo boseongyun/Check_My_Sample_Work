@@ -5,6 +5,6 @@ I am currently unable to reproduce all of the work due to RAM limit (given to fr
 * app.r: the minimial version of my work
 * saved.r: the full version of my work
 
-**Notes: Please download another R Shiny Dashboard & Leaflet folder that contains the data in order to run!*
+**Notes: Please download another [R Shiny Dashboard & Leaflet Data folder](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/R%20Shiny%20Dashboard%20%26%20Leaflet%20) in order to run!*
 
 **Here is the address to Shinyapp.io: https://boseongyun.shinyapps.io/homework-2-boseongyun**
