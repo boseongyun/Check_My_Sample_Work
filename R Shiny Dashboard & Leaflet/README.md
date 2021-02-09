@@ -1,4 +1,4 @@
-The pictures show the snapshots of my Rshiny Dashboard & Leaflet.
+The pictures contained in the folder (saved as pngs) show the snapshots of my Rshiny Dashboard & Leaflet.
 
 I am currently unable to reproduce all of the work due to RAM limit (given to free acounts). I have thus downgraded the Shinyapp.io version to ensure that it can run on the Shinnyapp.io platform. (I would have to pay extra money to increase my ram limit). However, you can reproduce my full version on your local machine! 
 
