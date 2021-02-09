@@ -2,12 +2,12 @@
 
 **ENJOY :)**
 
+* Machine Learning: Machine Learning Code Sample 
+* Program Evalaution: Program Evaluation Code Sample
+* R Shiny (Dashboard & Leafelt) Interactive Map (You would have to download both of the files to execute them on your local computer)
 * HW08: Web Scraping & Text Analysis
 * HW07: Exploratory Data Analysis (EDA) and Regressions
 * HW06: Text Analysis using MTurk Surveys
-* Program Evalaution: Program Evaluation Code Sample
-* Machine Learning: Machine Learning Code Sample 
-* R Shiny (Dashboard & Leafelt) Interactive Map (You would have to download both of the files to execute them on your local computer)
 
 
 *Notes: Please feel free to contact me if you would like to have access to the data used for any of the projects*
