@@ -4,7 +4,7 @@
 
 * [Machine Learning](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/Machine%20Learning): Machine Learning Code Sample
 * [Program Evalaution](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/Program%20Evaluation): Program Evaluation Code Sample
-* R Shiny (Dashboard & Leafelt) Interactive Map (You would have to download both of the files to execute them on your local computer) [Data](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/R%20Shiny%20Dashboard%20%26%20Leaflet%20) & [Map](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/R%20Shiny%20Dashboard%20%26%20Leaflet)
+* R Shiny Dashboard Interactive Leaflet Map (You would have to download both of the files to execute them on your local computer) [Data](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/R%20Shiny%20Dashboard%20%26%20Leaflet%20) & [Map](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/R%20Shiny%20Dashboard%20%26%20Leaflet)
 * [HW08: Web Scraping & Text Analysis](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/hw08-master)
 * [HW07: Exploratory Data Analysis (EDA) and Regressions](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/hw07-master)
 * [HW06: Text Analysis using MTurk Surveys](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/hw06-master)
