@@ -2,7 +2,7 @@
 
 **ENJOY :)**
 
-* [Machine Learning](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/Machine%20Learning]: Machine Learning Code Sample)
+* [Machine Learning](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/Machine%20Learning): Machine Learning Code Sample)
 * Program Evalaution: Program Evaluation Code Sample
 * R Shiny (Dashboard & Leafelt) Interactive Map (You would have to download both of the files to execute them on your local computer)
 * HW08: Web Scraping & Text Analysis
