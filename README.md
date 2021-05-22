@@ -1,4 +1,4 @@
-### Hello, I have uploaded a list of my sample work. The following list of work are meant to give you a ballpark measure of my capabilities in programming, modeling, and analyzing. 
+### Hello, I have uploaded a list of my sample work. The following list of work is meant to give you a ballpark measure of my capabilities in programming, modeling, and analyzing. 
 
 ### Currnetly, I am working on area-weighted sptial aggreagation of climate data using the netCDF file for my class project with the World Bank. I am also building predictive models for classifying political violence targeting women in my computational reserach course. (Please feel free to contact me if you would like to know more about my current projects) 
 
