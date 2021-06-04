@@ -1,6 +1,4 @@
-### Hello, I have uploaded a list of my sample work. The following list of work is meant to give you a ballpark measure of my capabilities in programming, modeling, and analyzing. 
-
-### Currnetly, I am working on area-weighted sptial aggreagation of climate data using the netCDF file for my class project with the World Bank. I am also building predictive models for classifying political violence targeting women in my computational reserach course. (Please feel free to contact me if you would like to know more about my current projects because they are not uploaded here yet) 
+#### Hello, welcome to my website. I have uploaded a list of my sample work to provide you a ballpark meaasure of my capabilities in programming, modeling and analyzing. Although not uploaded in the list due to confidentiality concerns, I have extensively dealth with spatial data where I performed area-weighted spatial aggregation using netCDF file. Please reach out to me if you would like to see some sample work
 
 **ENJOY :)**
 
@@ -11,4 +9,4 @@
 * [HW08: Web Scraping & Text Analysis](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/hw08-master)
 
 
-*Notes: Please feel free to contact me if you would like to have access to the data used for any of the projects*
+*Notes: Information about background information and data have been omitted for some sample work due to confidentiality. Please feel free to contact me if you would like to have access to the data used for any of the projects*
