@@ -1,4 +1,4 @@
-#### Hello, welcome to my website. I have uploaded a list of my sample work to provide you a ballpark meaasure of my capabilities in programming, modeling and analyzing. Although not uploaded in this list due to confidentiality concerns, I have extensively dealth with spatial data where I performed area-weighted spatial aggregation using netCDF file. Please reach out to me if you would like to see some sample work. Otherwise, Enjoy! 
+#### Please reach out to me if you would like to see some sample work. Otherwise, Enjoy! 
 
 * [Predicting Politcal Violence Targeting Women](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/Predicting%20Political%20Violence%20Targeting%20Women): My independent research that investigates the presence of systematic gendered patterns in political violence through predictive modeling and panel fixed effects regression. 
 * [Machine Learning](https://github.com/boseongyun/Check_My_Sample_Work/tree/main/Machine%20Learning): Machine Learning & Computational Modeling Code Sample
